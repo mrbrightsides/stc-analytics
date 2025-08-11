@@ -660,7 +660,6 @@ if swc_nd is not None:
 if ing:
     st.success(f"{ing} temuan masuk ke swc_findings.")
 
-
     # --- Guard tampilkan data ---
     want_load = st.session_state.get("load_existing", False)
     no_new_upload = (swc_csv is None and swc_nd is None)
@@ -737,41 +736,55 @@ if ing:
 # -------------------------------
 else:
     st.title("🚀 Performance Analytics — STC Bench")
-    with st.expander("Ingest CSV Bench (runs & tx)", expanded=False):
-        col1,col2 = st.columns(2)
-        with col1:
-            runs = st.file_uploader("bench_runs.csv", type=None, key="runs_csv")
-            if runs is not None:
-    d = read_csv_any(runs)
-                cols = ["run_id","timestamp","network","scenario","contract","function_name","concurrency",
-                        "tx_per_user","tps_avg","tps_peak","p50_ms","p95_ms","success_rate"]
-                for c in cols:
-                    if c not in d.columns:
-                        d[c] = None
-                d["timestamp"] = pd.to_datetime(d["timestamp"], errors="coerce").fillna(pd.Timestamp.utcnow())
-                n = upsert("bench_runs", d, ["run_id"], cols)
-                st.success(f"{n} baris masuk ke bench_runs.")
-        with col2:
-            tx = st.file_uploader("bench_tx.csv", type=None, key="tx_csv")
-            if tx is not None:
-    d = read_csv_any(tx)
-                cols = ["run_id","tx_hash","submitted_at","mined_at","latency_ms","status","gas_used","gas_price_wei","block_number","function_name"]
-                for c in cols:
-                    if c not in d.columns:
-                        d[c] = None
-                d["submitted_at"] = pd.to_datetime(d["submitted_at"], errors="coerce")
-                d["mined_at"] = pd.to_datetime(d["mined_at"], errors="coerce")
-                con = get_conn()
-                con.execute("CREATE TEMP TABLE stg AS SELECT * FROM bench_tx WITH NO DATA;")
-                con.register("df_stage", d[cols])
-                con.execute("INSERT INTO stg SELECT * FROM df_stage;")
-                con.execute("""DELETE FROM bench_tx USING (
-                              SELECT DISTINCT run_id, tx_hash FROM stg
-                            ) d WHERE bench_tx.run_id=d.run_id AND bench_tx.tx_hash=d.tx_hash;""")
-                con.execute("INSERT INTO bench_tx SELECT * FROM stg;")
-                n = con.execute("SELECT COUNT(*) FROM stg").fetchone()[0]
-                con.close()
-                st.success(f"{n} baris masuk ke bench_tx.")
+
+with st.expander("Ingest CSV Bench (runs & tx)", expanded=False):
+    col1, col2 = st.columns(2)
+
+    # ---- bench_runs ----
+    with col1:
+        runs = st.file_uploader("bench_runs.csv", type=None, key="runs_csv")
+        if runs is not None:
+            d = read_csv_any(runs)
+            cols = [
+                "run_id","timestamp","network","scenario","contract","function_name",
+                "concurrency","tx_per_user","tps_avg","tps_peak","p50_ms","p95_ms","success_rate"
+            ]
+            for c in cols:
+                if c not in d.columns:
+                    d[c] = None
+            d["timestamp"] = pd.to_datetime(d["timestamp"], errors="coerce").fillna(pd.Timestamp.utcnow())
+            n = upsert("bench_runs", d, ["run_id"], cols)
+            st.success(f"{n} baris masuk ke bench_runs.")
+
+    # ---- bench_tx ----
+    with col2:
+        tx = st.file_uploader("bench_tx.csv", type=None, key="tx_csv")
+        if tx is not None:
+            d = read_csv_any(tx)
+            cols = [
+                "run_id","tx_hash","submitted_at","mined_at","latency_ms","status",
+                "gas_used","gas_price_wei","block_number","function_name"
+            ]
+            for c in cols:
+                if c not in d.columns:
+                    d[c] = None
+            d["submitted_at"] = pd.to_datetime(d["submitted_at"], errors="coerce")
+            d["mined_at"] = pd.to_datetime(d["mined_at"], errors="coerce")
+
+            con = get_conn()
+            con.execute("CREATE TEMP TABLE stg AS SELECT * FROM bench_tx WITH NO DATA;")
+            con.register("df_stage", d[cols])
+            con.execute("INSERT INTO stg SELECT * FROM df_stage;")
+            con.execute("""
+                DELETE FROM bench_tx USING (
+                    SELECT DISTINCT run_id, tx_hash FROM stg
+                ) d
+                WHERE bench_tx.run_id = d.run_id AND bench_tx.tx_hash = d.tx_hash;
+            """)
+            con.execute("INSERT INTO bench_tx SELECT * FROM stg;")
+            n = con.execute("SELECT COUNT(*) FROM stg").fetchone()[0]
+            con.close()
+            st.success(f"{n} baris masuk ke bench_tx.")
 
         # Templates
         _, _, tpl_runs, tpl_tx = sample_templates()
