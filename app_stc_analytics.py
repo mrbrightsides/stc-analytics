@@ -5,6 +5,40 @@ import plotly.express as px
 import streamlit as st
 from datetime import datetime
 
+# --- NDJSON reader helper ---
+def read_ndjson(uploaded):
+    """Baca NDJSON dari st.file_uploader atau file-like object."""
+    if uploaded is None:
+        return None
+    try:
+        uploaded.seek(0)
+    except Exception:
+        pass
+    try:
+        return pd.read_json(uploaded, lines=True)
+    except Exception as e:
+        st.error(f"Gagal membaca NDJSON: {e}")
+        return None
+
+# --- CSV reader yang toleran (mobile-friendly) ---
+def read_csv_any(uploaded):
+    """Baca CSV dari st.file_uploader apa pun MIME/ekstensinya."""
+    if uploaded is None:
+        return None
+    # coba pointer ke awal (kalau objeknya mendukung)
+    try:
+        uploaded.seek(0)
+    except Exception:
+        pass
+    # percobaan 1: langsung ke pandas
+    try:
+        return pd.read_csv(uploaded, engine="python", on_bad_lines="skip", encoding="utf-8")
+    except Exception:
+        # percobaan 2: paksa decode bytes → StringIO
+        data = uploaded.getvalue() if hasattr(uploaded, "getvalue") else uploaded.read()
+        return pd.read_csv(io.StringIO(data.decode("utf-8", "ignore")),
+                           engine="python", on_bad_lines="skip")
+
 # -------------------------------
 # App & DB setup
 # -------------------------------
