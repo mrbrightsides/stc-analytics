@@ -380,12 +380,17 @@ if page == "Cost (Vision)":
                 st.session_state["live_cost_offset"] = 0
                 st.info("Offset live di-reset. Ingest berikutnya membaca ulang dari awal.")
 
-        if live_enabled and live_auto and live_path.strip():
-            added = watch_ndjson_file(live_path.strip())
-            if added:
-                st.toast(f"Live ingest: +{added} baris", icon="✅")
-            time.sleep(live_interval)
-            st.experimental_rerun()
+       # Auto loop sederhana (blocking sleep + rerun)
+if live_enabled and live_auto and live_path.strip():
+    added = watch_ndjson_file(live_path.strip())
+    if added:
+        st.toast(f"Live ingest: +{added} baris", icon="✅")
+    time.sleep(live_interval)
+    # Streamlit >=1.30
+    if hasattr(st, "rerun"):
+        st.rerun()
+    else:  # versi lama
+        st.experimental_rerun()
 
     # Guard
     want_load = st.session_state.get("load_existing", False)
