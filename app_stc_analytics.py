@@ -406,10 +406,7 @@ if page == "Cost (Vision)":
                 type=["ndjson","jsonl"], key="nd_cost"
             )
         with right:
-            cs = st.file_uploader(
-                "Upload CSV (dari STC-Vision)",
-                type=["csv"], key="csv_cost"
-            )
+            cs = st.file_uploader("Upload CSV (dari STC-Vision)", type=None, key="csv_cost")
 
         # Info + link sumber data (MASIH di dalam expander)
         st.info(
@@ -516,9 +513,9 @@ if page == "Cost (Vision)":
                 ing += upsert("vision_costs", d, ["id"], cols)
 
         if cs is not None:
-            raw = pd.read_csv(cs)
-            d = map_csv_cost(raw)
-            ing += upsert("vision_costs", d, ["id"], d.columns.tolist())
+    raw = read_csv_any(cs)
+    d = map_csv_cost(raw)
+    ing += upsert("vision_costs", d, ["id"], d.columns.tolist())
 
         if ing:
             st.success(f"{ing} baris masuk ke vision_costs.")
@@ -573,7 +570,7 @@ elif page == "Security (SWC)":
     with st.expander("Ingest CSV/NDJSON SWC Findings", expanded=False):
         left, right = st.columns(2)
         with left:
-            swc_csv = st.file_uploader("Upload CSV swc_findings.csv", type=["csv"], key="swc_csv")
+            swc_csv = st.file_uploader("Upload CSV swc_findings.csv", type=None, key="swc_csv")
         with right:
             swc_nd = st.file_uploader("Upload NDJSON swc_findings.ndjson", type=["ndjson","jsonl"], key="swc_nd")
 
@@ -642,9 +639,9 @@ elif page == "Security (SWC)":
         # Auto-ingest (langsung proses saat file di-upload)
         ing = 0
         if swc_csv is not None:
-            d = pd.read_csv(swc_csv)
-            d = map_swc(d)
-            ing += upsert("swc_findings", d, ["finding_id"], d.columns.tolist())
+    d = read_csv_any(swc_csv)
+    d = map_swc(d)
+    ing += upsert("swc_findings", d, ["finding_id"], d.columns.tolist())
 
         if swc_nd is not None:
             rows = []
@@ -742,9 +739,9 @@ else:
     with st.expander("Ingest CSV Bench (runs & tx)", expanded=False):
         col1,col2 = st.columns(2)
         with col1:
-            runs = st.file_uploader("bench_runs.csv", type=["csv"], key="runs_csv")
+            runs = st.file_uploader("bench_runs.csv", type=None, key="runs_csv")
             if runs is not None:
-                d = pd.read_csv(runs)
+    d = read_csv_any(runs)
                 cols = ["run_id","timestamp","network","scenario","contract","function_name","concurrency",
                         "tx_per_user","tps_avg","tps_peak","p50_ms","p95_ms","success_rate"]
                 for c in cols:
@@ -754,9 +751,9 @@ else:
                 n = upsert("bench_runs", d, ["run_id"], cols)
                 st.success(f"{n} baris masuk ke bench_runs.")
         with col2:
-            tx = st.file_uploader("bench_tx.csv", type=["csv"], key="tx_csv")
+            tx = st.file_uploader("bench_tx.csv", type=None, key="tx_csv")
             if tx is not None:
-                d = pd.read_csv(tx)
+    d = read_csv_any(tx)
                 cols = ["run_id","tx_hash","submitted_at","mined_at","latency_ms","status","gas_used","gas_price_wei","block_number","function_name"]
                 for c in cols:
                     if c not in d.columns:
