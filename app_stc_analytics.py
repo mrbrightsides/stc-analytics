@@ -380,29 +380,24 @@ if page == "Cost (Vision)":
                 st.session_state["live_cost_offset"] = 0
                 st.info("Offset live di-reset. Ingest berikutnya membaca ulang dari awal.")
 
-tab = st.sidebar.radio("Pilih tab", ["Cost (Vision)", "Security (SWC)", "Performance (Bench)"])
-
 # --- Auto loop hanya untuk tab Cost (Vision) ---
-if tab == "Cost (Vision)":
-    live_enabled = st.session_state.get("live_cost_enabled", False)
-    live_auto    = st.session_state.get("live_cost_auto", False)
-    live_path    = (st.session_state.get("live_cost_path", "") or "").strip()
-    live_interval = int(st.session_state.get("live_cost_interval", 5))
+live_enabled  = st.session_state.get("live_cost_enabled", False)
+live_auto     = st.session_state.get("live_cost_auto", False)
+live_path     = (st.session_state.get("live_cost_path", "") or "").strip()
+live_interval = int(st.session_state.get("live_cost_interval", 5))
 
-    if live_enabled and live_auto and live_path:
-        now  = time.time()
-        last = st.session_state.get("_live_cost_last_ts", 0)
-        if now - last >= live_interval:
-            added = watch_ndjson_file(live_path)
-            if added:
-                st.toast(f"Live ingest: +{added} baris", icon="✅")
-            st.session_state["_live_cost_last_ts"] = now
-
-            try:
-                st.rerun()
-            except Exception:
-                st.experimental_rerun()
-
+if live_enabled and live_auto and live_path:
+    now  = time.time()
+    last = st.session_state.get("_live_cost_last_ts", 0)
+    if now - last >= live_interval:
+        added = watch_ndjson_file(live_path)
+        if added:
+            st.toast(f"Live ingest: +{added} baris", icon="✅")
+        st.session_state["_live_cost_last_ts"] = now
+        try:
+            st.rerun()
+        except Exception:
+            st.experimental_rerun()
 
     # Guard
     want_load = st.session_state.get("load_existing", False)
