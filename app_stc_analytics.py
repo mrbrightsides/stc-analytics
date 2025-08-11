@@ -512,13 +512,13 @@ if page == "Cost (Vision)":
                     d[numc] = pd.to_numeric(d[numc], errors="coerce")
                 ing += upsert("vision_costs", d, ["id"], cols)
 
-       if cs is not None:
-    raw = read_csv_any(cs)
-    d = map_csv_cost(raw)
-    ing += upsert("vision_costs", d, ["id"], d.columns.tolist())
+            if cs is not None:
+            raw = read_csv_any(cs)
+            d = map_csv_cost(raw)
+            ing += upsert("vision_costs", d, ["id"], d.columns.tolist())
 
-    if ing:
-        st.success(f"{ing} baris masuk ke vision_costs.")
+            if ing:
+                st.success(f"{ing} baris masuk ke vision_costs.")
 
     # ← Di sini kita sudah keluar dari expander, tapi masih di dalam blok `if page == ...`
     want_load = st.session_state.get("load_existing", False)
