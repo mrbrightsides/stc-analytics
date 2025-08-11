@@ -9,6 +9,7 @@ from datetime import datetime
 # App & DB setup
 # -------------------------------
 st.set_page_config(page_title="STC Analytics (Hybrid)", layout="wide")
+st.sidebar.image("assets/stc-logo.png", width=120)
 
 # Quick CSS theme (dark + teal accents)
 st.markdown("""
