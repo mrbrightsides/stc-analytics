@@ -553,8 +553,6 @@ elif page == "Security (SWC)":
             lambda r: f"{r.get('contract','')}::{r.get('swc_id','')}::{r.get('line_start','')}",
             axis=1
         )
-
-        # hanya isi yang kosong; jangan timpa yg sudah ada
         if "finding_id" not in df.columns:
             df["finding_id"] = fallback
         else:
@@ -573,10 +571,8 @@ elif page == "Security (SWC)":
         with right:
             swc_nd = st.file_uploader("Upload NDJSON swc_findings.ndjson", type=["ndjson","jsonl"], key="swc_nd")
 
-        # ==== DOWNLOAD BUTTONS (konsisten dgn Vision) ====
+        # ==== DOWNLOAD BUTTONS ====
         col_dl1, col_dl2 = st.columns(2)
-
-        # Template CSV (SWC)
         with col_dl1:
             st.download_button(
                 "⬇️ Template CSV (SWC)",
@@ -588,42 +584,18 @@ elif page == "Security (SWC)":
                 mime="text/csv",
                 use_container_width=True,
             )
-
-        # Contoh NDJSON (SWC)
         with col_dl2:
             sample_rows = [
-                {
-                    "finding_id": "",
-                    "timestamp": "2025-08-11T09:45:00Z",
-                    "network": "Sepolia",
-                    "contract": "SmartReservation",
-                    "file": "contracts/SmartReservation.sol",
-                    "line_start": 98,
-                    "line_end": 102,
-                    "swc_id": "SWC-105",
-                    "title": "Potential issue SWC-105 detected",
-                    "severity": "Low",
-                    "confidence": 0.82,
-                    "status": "Open",
-                    "remediation": "Review and document",
-                    "commit_hash": "0xa36e...c5b0",
-                },
-                {
-                    "finding_id": "SmartTourismToken::SWC-108::279",
-                    "timestamp": "2025-08-10T16:20:00Z",
-                    "network": "Arbitrum Sepolia",
-                    "contract": "SmartTourismToken",
-                    "file": "contracts/SmartTourismToken.sol",
-                    "line_start": 279,
-                    "line_end": 288,
-                    "swc_id": "SWC-108",
-                    "title": "Potential issue SWC-108 detected",
-                    "severity": "Medium",
-                    "confidence": 0.87,
-                    "status": "Fixed",
-                    "remediation": "Refactor code and add checks",
-                    "commit_hash": "0xc54f...54c8",
-                },
+                {"finding_id":"", "timestamp":"2025-08-11T09:45:00Z", "network":"Sepolia",
+                 "contract":"SmartReservation","file":"contracts/SmartReservation.sol",
+                 "line_start":98,"line_end":102,"swc_id":"SWC-105","title":"Potential issue SWC-105 detected",
+                 "severity":"Low","confidence":0.82,"status":"Open","remediation":"Review and document",
+                 "commit_hash":"0xa36e...c5b0"},
+                {"finding_id":"SmartTourismToken::SWC-108::279","timestamp":"2025-08-10T16:20:00Z",
+                 "network":"Arbitrum Sepolia","contract":"SmartTourismToken",
+                 "file":"contracts/SmartTourismToken.sol","line_start":279,"line_end":288,"swc_id":"SWC-108",
+                 "title":"Potential issue SWC-108 detected","severity":"Medium","confidence":0.87,"status":"Fixed",
+                 "remediation":"Refactor code and add checks","commit_hash":"0xc54f...54c8"},
             ]
             ndjson_bytes = ("\n".join(json.dumps(r) for r in sample_rows)).encode("utf-8")
             st.download_button(
@@ -635,34 +607,34 @@ elif page == "Security (SWC)":
             )
         # ==== END DOWNLOAD BUTTONS ====
 
-        # Auto-ingest (langsung proses saat file di-upload)
+        # ---- Auto-ingest (langsung proses saat upload) ----
         ing = 0
-if swc_csv is not None:
-    d = read_csv_any(swc_csv)
-    d = map_swc(d)
-    ing += upsert("swc_findings", d, ["finding_id"], d.columns.tolist())
 
-if swc_nd is not None:
-    rows = []
-    for line in swc_nd:
-        if not line:
-            continue
-        try:
-            rows.append(json.loads(line.decode("utf-8")))
-        except Exception:
-            pass
+        if swc_csv is not None:
+            d = read_csv_any(swc_csv)
+            d = map_swc(d)
+            ing += upsert("swc_findings", d, ["finding_id"], d.columns.tolist())
 
-    if rows:
-        d = pd.DataFrame(rows)
-        d = map_swc(d)
-        ing += upsert("swc_findings", d, ["finding_id"], d.columns.tolist())
+        if swc_nd is not None:
+            rows = []
+            for line in swc_nd:
+                if not line:
+                    continue
+                try:
+                    rows.append(json.loads(line.decode("utf-8")))
+                except Exception:
+                    pass
+            if rows:
+                d = pd.DataFrame(rows)
+                d = map_swc(d)
+                ing += upsert("swc_findings", d, ["finding_id"], d.columns.tolist())
 
-if ing:
-    st.success(f"{ing} temuan masuk ke swc_findings.")
+        if ing:
+            st.success(f"{ing} temuan masuk ke swc_findings.")
 
-    # --- Guard tampilkan data ---
+    # ===== DI LUAR EXPANDER (tapi masih di halaman SWC) =====
     want_load = st.session_state.get("load_existing", False)
-    no_new_upload = (swc_csv is None and swc_nd is None)
+    no_new_upload = (st.session_state.get("swc_csv") is None and st.session_state.get("swc_nd") is None)
     if no_new_upload and not want_load:
         st.info("Belum ada data temuan SWC untuk sesi ini. Upload CSV/NDJSON atau aktifkan ‘Load existing stored data’.")
         st.stop()
@@ -690,21 +662,26 @@ if ing:
             df = df[df["swc_id"].astype(str).str.contains(f_swc.strip(), case=False, na=False)]
 
         total = len(df); high = (df["severity"].astype(str).str.lower() == "high").sum()
-        c1,c2,c3 = st.columns(3)
+        c1, c2, c3 = st.columns(3)
         c1.metric("Total Findings", f"{total:,}")
         c2.metric("High Severity", f"{high:,}")
         c3.metric("Unique SWC IDs", f"{df['swc_id'].nunique():,}")
 
-        pivot = df.pivot_table(index="swc_id", columns="severity", values="finding_id", aggfunc="count", fill_value=0)
+        pivot = df.pivot_table(index="swc_id", columns="severity", values="finding_id",
+                               aggfunc="count", fill_value=0)
         if not pivot.empty:
             fig = px.imshow(pivot, text_auto=True, aspect="auto", title="SWC-ID × Severity (count)")
             st.plotly_chart(fig, use_container_width=True)
 
         st.markdown("### Detail Temuan")
-        detail_cols = ["timestamp","network","contract","file","line_start","swc_id","title","severity","confidence","status","remediation"]
+        detail_cols = ["timestamp","network","contract","file","line_start","swc_id","title",
+                       "severity","confidence","status","remediation"]
         st.dataframe(df[detail_cols], use_container_width=True)
-        st.download_button("⬇️ Download hasil filter (CSV)", data=csv_bytes(df[detail_cols]),
-                           file_name="swc_filtered.csv", mime="text/csv", use_container_width=True)
+        st.download_button(
+            "⬇️ Download hasil filter (CSV)",
+            data=csv_bytes(df[detail_cols]),
+            file_name="swc_filtered.csv", mime="text/csv", use_container_width=True
+        )
 
         # --- SWC Knowledge ---
         st.markdown("### 🔎 SWC Knowledge")
