@@ -637,12 +637,12 @@ elif page == "Security (SWC)":
 
         # Auto-ingest (langsung proses saat file di-upload)
         ing = 0
-    if swc_csv is not None:
-        d = read_csv_any(swc_csv)
-        d = map_swc(d)
-        ing += upsert("swc_findings", d, ["finding_id"], d.columns.tolist())
+if swc_csv is not None:
+    d = read_csv_any(swc_csv)
+    d = map_swc(d)
+    ing += upsert("swc_findings", d, ["finding_id"], d.columns.tolist())
 
-    if swc_nd is not None:
+if swc_nd is not None:
     rows = []
     for line in swc_nd:
         if not line:
@@ -657,8 +657,9 @@ elif page == "Security (SWC)":
         d = map_swc(d)
         ing += upsert("swc_findings", d, ["finding_id"], d.columns.tolist())
 
-        if ing:
-            st.success(f"{ing} temuan masuk ke swc_findings.")
+if ing:
+    st.success(f"{ing} temuan masuk ke swc_findings.")
+
 
     # --- Guard tampilkan data ---
     want_load = st.session_state.get("load_existing", False)
