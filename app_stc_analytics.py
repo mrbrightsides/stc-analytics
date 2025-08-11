@@ -512,7 +512,7 @@ if page == "Cost (Vision)":
                     d[numc] = pd.to_numeric(d[numc], errors="coerce")
                 ing += upsert("vision_costs", d, ["id"], cols)
 
-            if cs is not None:
+        if cs is not None:
             raw = read_csv_any(cs)
             d = map_csv_cost(raw)
             ing += upsert("vision_costs", d, ["id"], d.columns.tolist())
