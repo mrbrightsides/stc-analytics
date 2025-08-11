@@ -354,33 +354,7 @@ if page == "Cost (Vision)":
         if ing:
             st.success(f"{ing} baris masuk ke vision_costs.")
 
-    # Live mode (watch NDJSON file append-only)
-    with st.expander("🔴 Live mode — Watch NDJSON (append-only)", expanded=False):
-        st.write("Jalankan script collector yang menulis **vision_costs.ndjson** terus-menerus, lalu set path di bawah.")
-        col_live = st.columns(3)
-        with col_live[0]:
-            live_enabled = st.checkbox("Enable live mode", value=st.session_state.get("live_cost_enabled", False), key="live_cost_enabled")
-        with col_live[1]:
-            live_interval = st.number_input("Refresh (detik)", 1, 60, value=5, step=1, key="live_cost_interval")
-        with col_live[2]:
-            live_auto = st.checkbox("Auto refresh", value=True, key="live_cost_auto")
-
-        live_path = st.text_input("Path file NDJSON", value=st.session_state.get("live_cost_path","vision_costs.ndjson"), key="live_cost_path")
-
-        col_btn = st.columns(2)
-        with col_btn[0]:
-            if st.button("➡️ Ingest sekali (baca baris baru)"):
-                if live_path.strip():
-                    added = watch_ndjson_file(live_path.strip())
-                    st.success(f"Masuk {added} baris baru dari live file.")
-                else:
-                    st.warning("Isi path file NDJSON dulu.")
-        with col_btn[1]:
-            if st.button("♻️ Reset offset"):
-                st.session_state["live_cost_offset"] = 0
-                st.info("Offset live di-reset. Ingest berikutnya membaca ulang dari awal.")
-
-# --- Auto loop hanya untuk tab Cost (Vision) ---
+    # --- Auto loop hanya untuk tab Cost (Vision) ---
 live_enabled  = st.session_state.get("live_cost_enabled", False)
 live_auto     = st.session_state.get("live_cost_auto", False)
 live_path     = (st.session_state.get("live_cost_path", "") or "").strip()
@@ -399,60 +373,60 @@ if live_enabled and live_auto and live_path:
         except Exception:
             st.experimental_rerun()
 
-    # Guard
-    want_load = st.session_state.get("load_existing", False)
-    no_new_upload = (st.session_state.get('nd_cost') is None) and (st.session_state.get('csv_cost') is None)
-    if no_new_upload and not want_load:
-        st.info("Belum ada data cost. Upload data atau aktifkan ‘Load existing stored data’.")
-        st.stop()
+# === Guard (SELALU jalan, tidak di dalam if live...) ===
+want_load = st.session_state.get("load_existing", False)
+no_new_upload = (st.session_state.get('nd_cost') is None) and (st.session_state.get('csv_cost') is None)
+if no_new_upload and not want_load:
+    st.info("Belum ada data cost. Upload data atau aktifkan ‘Load existing stored data’.")
+    st.stop()
 
-    # View
-    con = get_conn()
-    df = con.execute("SELECT * FROM vision_costs ORDER BY timestamp DESC").df()
-    con.close()
+# === View (SELALU jalan) ===
+con = get_conn()
+df = con.execute("SELECT * FROM vision_costs ORDER BY timestamp DESC").df()
+con.close()
 
-    if df.empty:
-        st.info("Belum ada data cost.")
-        st.stop()
+if df.empty:
+    st.info("Belum ada data cost.")
+    st.stop()
 
-    cols = st.columns(3)
-    nets = ["(All)"] + sorted(df["network"].dropna().astype(str).unique().tolist())
-    fns  = ["(All)"] + sorted(df["function_name"].dropna().astype(str).unique().tolist())
-    with cols[0]: f_net = st.selectbox("Network", nets, index=0)
-    with cols[1]: f_fn  = st.selectbox("Function", fns, index=0)
-    with cols[2]:
-        min_d = pd.to_datetime(df["timestamp"]).min().date()
-        max_d = pd.to_datetime(df["timestamp"]).max().date()
-        dr = st.date_input("Rentang Tanggal", (min_d, max_d))
+cols = st.columns(3)
+nets = ["(All)"] + sorted(df["network"].dropna().astype(str).unique().tolist())
+fns  = ["(All)"] + sorted(df["function_name"].dropna().astype(str).unique().tolist())
+with cols[0]: f_net = st.selectbox("Network", nets, index=0)
+with cols[1]: f_fn  = st.selectbox("Function", fns, index=0)
+with cols[2]:
+    min_d = pd.to_datetime(df["timestamp"]).min().date()
+    max_d = pd.to_datetime(df["timestamp"]).max().date()
+    dr = st.date_input("Rentang Tanggal", (min_d, max_d))
 
-    df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
-    if f_net != "(All)": df = df[df["network"] == f_net]
-    if f_fn  != "(All)": df = df[df["function_name"] == f_fn]
-    if isinstance(dr, tuple) and len(dr) == 2:
-        df = df[(df["timestamp"].dt.date >= dr[0]) & (df["timestamp"].dt.date <= dr[1])]
+df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
+if f_net != "(All)": df = df[df["network"] == f_net]
+if f_fn  != "(All)": df = df[df["function_name"] == f_fn]
+if isinstance(dr, tuple) and len(dr) == 2:
+    df = df[(df["timestamp"].dt.date >= dr[0]) & (df["timestamp"].dt.date <= dr[1])]
 
-    c1,c2,c3 = st.columns(3)
-    c1.metric("Total Transactions", f"{len(df):,}")
-    c2.metric("Avg Cost (IDR)", f"Rp {df['cost_idr'].mean():,.2f}" if not df.empty else "Rp 0")
-    top = df.groupby('function_name', dropna=False)['cost_idr'].mean().sort_values(ascending=False).head(1)
-    c3.metric("Top Function (Avg Cost)", f"{top.index[0]} — Rp {top.iloc[0]:,.0f}" if len(top)>0 else "-")
+c1,c2,c3 = st.columns(3)
+c1.metric("Total Transactions", f"{len(df):,}")
+c2.metric("Avg Cost (IDR)", f"Rp {df['cost_idr'].mean():,.2f}" if not df.empty else "Rp 0")
+top = df.groupby('function_name', dropna=False)['cost_idr'].mean().sort_values(ascending=False).head(1)
+c3.metric("Top Function (Avg Cost)", f"{top.index[0]} — Rp {top.iloc[0]:,.0f}" if len(top)>0 else "-")
 
-    colA,colB = st.columns(2)
-    with colA:
-        agg = df.groupby('function_name', dropna=False)['cost_idr'].mean().reset_index()
-        fig = px.bar(agg, x='function_name', y='cost_idr', title="Avg Cost per Function (IDR)")
-        st.plotly_chart(fig, use_container_width=True)
-    with colB:
-        df_sorted = df.sort_values('timestamp')
-        fig = px.line(df_sorted, x='timestamp', y='cost_idr', color='function_name', title="Cost Trend Over Time")
-        st.plotly_chart(fig, use_container_width=True)
+colA,colB = st.columns(2)
+with colA:
+    agg = df.groupby('function_name', dropna=False)['cost_idr'].mean().reset_index()
+    fig = px.bar(agg, x='function_name', y='cost_idr', title="Avg Cost per Function (IDR)")
+    st.plotly_chart(fig, use_container_width=True)
+with colB:
+    df_sorted = df.sort_values('timestamp')
+    fig = px.line(df_sorted, x='timestamp', y='cost_idr', color='function_name', title="Cost Trend Over Time")
+    st.plotly_chart(fig, use_container_width=True)
 
-    st.markdown("### Detail Transaksi")
-    show_cols = ["timestamp","network","tx_hash","contract","function_name","block_number","gas_used","gas_price_wei","cost_eth","cost_idr"]
-    st.dataframe(df[show_cols], use_container_width=True)
-    st.download_button("⬇️ Download hasil filter (CSV)",
-                       data=io.StringIO(df[show_cols].to_csv(index=False)).getvalue().encode("utf-8"),
-                       file_name="vision_filtered.csv", mime="text/csv", use_container_width=True)
+st.markdown("### Detail Transaksi")
+show_cols = ["timestamp","network","tx_hash","contract","function_name","block_number","gas_used","gas_price_wei","cost_eth","cost_idr"]
+st.dataframe(df[show_cols], use_container_width=True)
+st.download_button("⬇️ Download hasil filter (CSV)",
+                   data=io.StringIO(df[show_cols].to_csv(index=False)).getvalue().encode("utf-8"),
+                   file_name="vision_filtered.csv", mime="text/csv", use_container_width=True)
 
 # =========================
 # SECURITY (SWC)
