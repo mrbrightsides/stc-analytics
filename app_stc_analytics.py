@@ -637,13 +637,13 @@ elif page == "Security (SWC)":
 
         # Auto-ingest (langsung proses saat file di-upload)
         ing = 0
-        if swc_csv is not None:
-    d = read_csv_any(swc_csv)
-    d = map_swc(d)
-    ing += upsert("swc_findings", d, ["finding_id"], d.columns.tolist())
+    if swc_csv is not None:
+        d = read_csv_any(swc_csv)
+        d = map_swc(d)
+        ing += upsert("swc_findings", d, ["finding_id"], d.columns.tolist())
 
-        if swc_nd is not None:
-            rows = []
+    if swc_nd is not None:
+        rows = []
             for line in swc_nd:
                 if not line:
                     continue
@@ -651,7 +651,7 @@ elif page == "Security (SWC)":
                     rows.append(json.loads(line.decode("utf-8")))
                 except Exception:
                     pass
-            if rows:
+        if rows:
                 d = pd.DataFrame(rows)
                 d = map_swc(d)
                 ing += upsert("swc_findings", d, ["finding_id"], d.columns.tolist())
