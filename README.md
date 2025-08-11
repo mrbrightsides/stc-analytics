@@ -3,6 +3,9 @@
 
 Satu tempat buat pantau **biaya gas (Vision)**, **temuan keamanan (SWC)**, dan **hasil benchmark (Bench)** Smart Contract Anda — cepat, ringan, dan terstruktur. Dibangun dengan **Streamlit** + **DuckDB**.
 
+<img width="757" height="757" alt="stc-logo" src="https://github.com/user-attachments/assets/3a20844c-20c0-4f94-8e6d-0d25ffab49ff" />
+
+
 **Live app:** https://stc-analytics.streamlit.app/  
 **GasVision (untuk sumber CSV Vision):** https://stc-gasvision.streamlit.app/
 
