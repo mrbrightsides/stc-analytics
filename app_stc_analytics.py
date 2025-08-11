@@ -714,68 +714,81 @@ elif page == "Security (SWC)":
 else:
     st.title("🚀 Performance Analytics — STC Bench")
 
-with st.expander("Ingest CSV Bench (runs & tx)", expanded=False):
-    col1, col2 = st.columns(2)
+    with st.expander("Ingest CSV Bench (runs & tx)", expanded=False):
+        col1, col2 = st.columns(2)
 
-    # ---- bench_runs ----
-    with col1:
-        runs = st.file_uploader("bench_runs.csv", type=None, key="runs_csv")
-        if runs is not None:
-            d = read_csv_any(runs)
-            cols = [
-                "run_id","timestamp","network","scenario","contract","function_name",
-                "concurrency","tx_per_user","tps_avg","tps_peak","p50_ms","p95_ms","success_rate"
-            ]
-            for c in cols:
-                if c not in d.columns:
-                    d[c] = None
-            d["timestamp"] = pd.to_datetime(d["timestamp"], errors="coerce").fillna(pd.Timestamp.utcnow())
-            n = upsert("bench_runs", d, ["run_id"], cols)
-            st.success(f"{n} baris masuk ke bench_runs.")
+        # ---- bench_runs ----
+        with col1:
+            runs = st.file_uploader("bench_runs.csv", type=None, key="runs_csv")
+            if runs is not None:
+                d = read_csv_any(runs)
+                cols = [
+                    "run_id","timestamp","network","scenario","contract","function_name",
+                    "concurrency","tx_per_user","tps_avg","tps_peak","p50_ms","p95_ms","success_rate"
+                ]
+                for c in cols:
+                    if c not in d.columns:
+                        d[c] = None
+                d["timestamp"] = pd.to_datetime(d["timestamp"], errors="coerce").fillna(pd.Timestamp.utcnow())
+                n = upsert("bench_runs", d, ["run_id"], cols)
+                st.success(f"{n} baris masuk ke bench_runs.")
 
-    # ---- bench_tx ----
-    with col2:
-        tx = st.file_uploader("bench_tx.csv", type=None, key="tx_csv")
-        if tx is not None:
-            d = read_csv_any(tx)
-            cols = [
-                "run_id","tx_hash","submitted_at","mined_at","latency_ms","status",
-                "gas_used","gas_price_wei","block_number","function_name"
-            ]
-            for c in cols:
-                if c not in d.columns:
-                    d[c] = None
-            d["submitted_at"] = pd.to_datetime(d["submitted_at"], errors="coerce")
-            d["mined_at"] = pd.to_datetime(d["mined_at"], errors="coerce")
+        # ---- bench_tx ----
+        with col2:
+            tx = st.file_uploader("bench_tx.csv", type=None, key="tx_csv")
+            if tx is not None:
+                d = read_csv_any(tx)
+                cols = [
+                    "run_id","tx_hash","submitted_at","mined_at","latency_ms","status",
+                    "gas_used","gas_price_wei","block_number","function_name"
+                ]
+                for c in cols:
+                    if c not in d.columns:
+                        d[c] = None
+                d["submitted_at"] = pd.to_datetime(d["submitted_at"], errors="coerce")
+                d["mined_at"] = pd.to_datetime(d["mined_at"], errors="coerce")
 
-            con = get_conn()
-            con.execute("CREATE TEMP TABLE stg AS SELECT * FROM bench_tx WITH NO DATA;")
-            con.register("df_stage", d[cols])
-            con.execute("INSERT INTO stg SELECT * FROM df_stage;")
-            con.execute("""
-                DELETE FROM bench_tx USING (
-                    SELECT DISTINCT run_id, tx_hash FROM stg
-                ) d
-                WHERE bench_tx.run_id = d.run_id AND bench_tx.tx_hash = d.tx_hash;
-            """)
-            con.execute("INSERT INTO bench_tx SELECT * FROM stg;")
-            n = con.execute("SELECT COUNT(*) FROM stg").fetchone()[0]
-            con.close()
-            st.success(f"{n} baris masuk ke bench_tx.")
+                con = get_conn()
+                con.execute("CREATE TEMP TABLE stg AS SELECT * FROM bench_tx WITH NO DATA;")
+                con.register("df_stage", d[cols])
+                con.execute("INSERT INTO stg SELECT * FROM df_stage;")
+                con.execute("""
+                    DELETE FROM bench_tx USING (
+                        SELECT DISTINCT run_id, tx_hash FROM stg
+                    ) d
+                    WHERE bench_tx.run_id = d.run_id AND bench_tx.tx_hash = d.tx_hash;
+                """)
+                con.execute("INSERT INTO bench_tx SELECT * FROM stg;")
+                n = con.execute("SELECT COUNT(*) FROM stg").fetchone()[0]
+                con.close()
+                st.success(f"{n} baris masuk ke bench_tx.")
 
-        # Templates
+        # ---- Templates ----
         _, _, tpl_runs, tpl_tx = sample_templates()
         dcol1, dcol2 = st.columns(2)
         with dcol1:
-            st.download_button("⬇️ Template bench_runs.csv", data=csv_bytes(tpl_runs),
-                               file_name="bench_runs_template.csv", mime="text/csv", use_container_width=True)
+            st.download_button(
+                "⬇️ Template bench_runs.csv",
+                data=csv_bytes(tpl_runs),
+                file_name="bench_runs_template.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
         with dcol2:
-            st.download_button("⬇️ Template bench_tx.csv", data=csv_bytes(tpl_tx),
-                               file_name="bench_tx_template.csv", mime="text/csv", use_container_width=True)
+            st.download_button(
+                "⬇️ Template bench_tx.csv",
+                data=csv_bytes(tpl_tx),
+                file_name="bench_tx_template.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
 
+    # ===== di luar expander =====
     want_load = st.session_state.get("load_existing", False)
-    no_new_upload = (('runs_csv' not in st.session_state or st.session_state['runs_csv'] is None) and
-                     ('tx_csv' not in st.session_state or st.session_state['tx_csv'] is None))
+    no_new_upload = (
+        (st.session_state.get("runs_csv") is None) and
+        (st.session_state.get("tx_csv") is None)
+    )
     if no_new_upload and not want_load:
         st.info("Belum ada data benchmark untuk sesi ini. Upload bench_runs/bench_tx atau aktifkan ‘Load existing stored data’.")
         st.stop()
@@ -790,35 +803,59 @@ with st.expander("Ingest CSV Bench (runs & tx)", expanded=False):
         cols = st.columns(3)
         nets = ["(All)"] + sorted(runs_df["network"].dropna().astype(str).unique().tolist())
         scns = ["(All)"] + sorted(runs_df["scenario"].dropna().astype(str).unique().tolist())
-        with cols[0]: f_net = st.selectbox("Network", nets, index=0)
-        with cols[1]: f_scn = st.selectbox("Scenario", scns, index=0)
-        with cols[2]: f_fn  = st.selectbox("Function", ["(All)"] + sorted(runs_df["function_name"].dropna().astype(str).unique().tolist()), index=0)
+        with cols[0]:
+            f_net = st.selectbox("Network", nets, index=0)
+        with cols[1]:
+            f_scn = st.selectbox("Scenario", scns, index=0)
+        with cols[2]:
+            f_fn = st.selectbox(
+                "Function",
+                ["(All)"] + sorted(runs_df["function_name"].dropna().astype(str).unique().tolist()),
+                index=0
+            )
 
         df = runs_df.copy()
         if f_net != "(All)":
             df = df[df["network"] == f_net]
         if f_scn != "(All)":
             df = df[df["scenario"] == f_scn]
-        if f_fn  != "(All)":
+        if f_fn != "(All)":
             df = df[df["function_name"] == f_fn]
 
-        k1,k2,k3 = st.columns(3)
+        k1, k2, k3 = st.columns(3)
         k1.metric("TPS Peak", f"{df['tps_peak'].max():,.2f}" if not df.empty else "0")
         k2.metric("Latency p95 (ms)", f"{df['p95_ms'].mean():,.0f}" if not df.empty else "0")
         k3.metric("Success Rate", f"{(df['success_rate'].mean()*100):.1f}%" if not df.empty else "0%")
 
-        c1,c2 = st.columns(2)
+        c1, c2 = st.columns(2)
         with c1:
-            fig = px.line(df.sort_values('concurrency'), x='concurrency', y='tps_avg', color='scenario', markers=True, title="TPS vs Concurrency")
+            fig = px.line(
+                df.sort_values("concurrency"),
+                x="concurrency", y="tps_avg", color="scenario",
+                markers=True, title="TPS vs Concurrency"
+            )
             st.plotly_chart(fig, use_container_width=True)
         with c2:
-            lat = df.melt(id_vars=['concurrency','scenario'], value_vars=['p50_ms','p95_ms'], var_name='metric', value_name='latency_ms')
-            fig = px.line(lat.sort_values('concurrency'), x='concurrency', y='latency_ms', color='metric', markers=True, title="Latency (p50/p95) vs Concurrency")
+            lat = df.melt(
+                id_vars=["concurrency","scenario"],
+                value_vars=["p50_ms","p95_ms"],
+                var_name="metric", value_name="latency_ms"
+            )
+            fig = px.line(
+                lat.sort_values("concurrency"),
+                x="concurrency", y="latency_ms", color="metric",
+                markers=True, title="Latency (p50/p95) vs Concurrency"
+            )
             st.plotly_chart(fig, use_container_width=True)
 
         st.markdown("### Detail Runs")
         st.dataframe(df, use_container_width=True)
-        st.download_button("⬇️ Download hasil filter (CSV)", data=csv_bytes(df),
-                           file_name="bench_runs_filtered.csv", mime="text/csv", use_container_width=True)
+        st.download_button(
+            "⬇️ Download hasil filter (CSV)",
+            data=csv_bytes(df),
+            file_name="bench_runs_filtered.csv",
+            mime="text/csv",
+            use_container_width=True
+        )
 
         show_help("bench")
