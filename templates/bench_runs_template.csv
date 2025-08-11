@@ -1,0 +1,2 @@
+run_id,timestamp,network,scenario,contract,function_name,concurrency,tx_per_user,tps_avg,tps_peak,p50_ms,p95_ms,success_rate
+run-001,2025-08-11T04:56:19.143081+00:00,Sepolia,LoadTestSmall,SmartReservation,checkIn,50,5,85.2,110.4,220,540,0.97

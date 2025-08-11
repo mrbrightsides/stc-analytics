@@ -1,0 +1,92 @@
+[
+  {
+    "id": "SWC-100",
+    "title": "Function Default Visibility",
+    "description": "Fungsi yang tidak diberi modifier visibility secara eksplisit dapat menyebabkan akses yang tidak diinginkan.",
+    "mitigation": "Selalu tentukan visibility secara eksplisit (public, internal, external, atau private)."
+  },
+  {
+    "id": "SWC-101",
+    "title": "Integer Overflow and Underflow",
+    "description": "Operasi aritmatika pada integer dapat menghasilkan overflow atau underflow jika tidak dikontrol.",
+    "mitigation": "Gunakan SafeMath atau compiler Solidity versi >=0.8 yang memiliki pemeriksaan overflow bawaan."
+  },
+  {
+    "id": "SWC-102",
+    "title": "Outdated Compiler Version",
+    "description": "Menggunakan versi compiler lama dapat membuat kontrak rentan terhadap bug yang sudah diketahui.",
+    "mitigation": "Gunakan versi compiler terbaru yang stabil dan sesuai rekomendasi."
+  },
+  {
+    "id": "SWC-103",
+    "title": "Floating Pragma",
+    "description": "Menggunakan pragma dengan versi rentang (^) dapat menyebabkan perbedaan perilaku pada saat compile.",
+    "mitigation": "Gunakan versi pragma yang spesifik untuk memastikan konsistensi."
+  },
+  {
+    "id": "SWC-104",
+    "title": "Unchecked Call Return Value",
+    "description": "Memanggil fungsi eksternal tanpa memeriksa nilai kembalian dapat menyebabkan eksekusi gagal tanpa disadari.",
+    "mitigation": "Periksa nilai kembalian dari setiap call eksternal."
+  },
+  {
+    "id": "SWC-105",
+    "title": "Unprotected Ether Withdrawal",
+    "description": "Fungsi penarikan Ether tanpa kontrol akses dapat menyebabkan pencurian dana.",
+    "mitigation": "Tambahkan modifier akses seperti onlyOwner atau mekanisme kontrol lain."
+  },
+  {
+    "id": "SWC-106",
+    "title": "Unprotected Selfdestruct",
+    "description": "Fungsi selfdestruct tanpa proteksi dapat menghancurkan kontrak secara tidak sengaja atau berbahaya.",
+    "mitigation": "Batasi akses ke fungsi selfdestruct."
+  },
+  {
+    "id": "SWC-107",
+    "title": "Reentrancy",
+    "description": "Kerentanan di mana fungsi dipanggil kembali sebelum eksekusi selesai, memungkinkan manipulasi state.",
+    "mitigation": "Gunakan pola Checks-Effects-Interactions atau reentrancy guard."
+  },
+  {
+    "id": "SWC-108",
+    "title": "State Variable Default Visibility",
+    "description": "Variabel state yang tidak diberi visibility akan bersifat internal secara default, namun tetap terbaca publik.",
+    "mitigation": "Tetapkan visibility sesuai kebutuhan dan gunakan private untuk data sensitif."
+  },
+  {
+    "id": "SWC-109",
+    "title": "Uninitialized Storage Pointer",
+    "description": "Variabel pointer yang tidak diinisialisasi dapat menunjuk ke storage yang salah.",
+    "mitigation": "Selalu inisialisasi variabel storage sebelum digunakan."
+  },
+  {
+    "id": "SWC-110",
+    "title": "Assert Violation",
+    "description": "Penggunaan assert() yang gagal akan mengonsumsi semua gas yang tersisa.",
+    "mitigation": "Gunakan require() untuk validasi input atau kondisi yang dapat diprediksi."
+  },
+  {
+    "id": "SWC-111",
+    "title": "Use of Deprecated Solidity Functions",
+    "description": "Menggunakan fungsi yang sudah deprecated dapat menyebabkan masalah kompatibilitas.",
+    "mitigation": "Ikuti dokumentasi resmi untuk mengganti fungsi yang deprecated."
+  },
+  {
+    "id": "SWC-112",
+    "title": "Delegatecall to Untrusted Callee",
+    "description": "delegatecall ke alamat yang tidak tepercaya dapat mengeksekusi kode berbahaya.",
+    "mitigation": "Hindari delegatecall ke kontrak yang tidak diverifikasi."
+  },
+  {
+    "id": "SWC-113",
+    "title": "DoS with (Unexpected) Revert",
+    "description": "Penyerang dapat memaksa transaksi gagal untuk mencegah eksekusi fungsi penting.",
+    "mitigation": "Tangani kemungkinan revert dengan mekanisme fallback."
+  },
+  {
+    "id": "SWC-114",
+    "title": "Transaction Order Dependence",
+    "description": "Perilaku kontrak bergantung pada urutan transaksi yang dapat dimanipulasi miner.",
+    "mitigation": "Hindari logika yang rentan terhadap manipulasi urutan transaksi."
+  }
+]
