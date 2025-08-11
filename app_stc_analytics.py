@@ -533,7 +533,6 @@ if page == "Cost (Vision)":
     con = get_conn()
     df = con.execute("SELECT * FROM vision_costs ORDER BY timestamp DESC").df()
     con.close()
-    ...
 
 # -------------------------------
 # SECURITY (SWC)
