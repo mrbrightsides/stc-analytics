@@ -33,8 +33,14 @@ div[data-testid="stMetric"]{
 </style>
 """, unsafe_allow_html=True)
 
-DB_PATH = os.getenv("EDA_DB_PATH", "stc_analytics.duckdb")
-SWC_KB_PATH = os.getenv("SWC_KB_PATH", "swc_kb.json")
+DB_PATH = (
+    os.getenv("EDA_DB_PATH")
+    or st.secrets.get("EDA_DB_PATH", "/tmp/stc_analytics.duckdb")
+)
+SWC_KB_PATH = (
+    os.getenv("SWC_KB_PATH")
+    or st.secrets.get("SWC_KB_PATH", "swc_kb.json")
+)
 
 def ensure_db():
     con = duckdb.connect(DB_PATH)
