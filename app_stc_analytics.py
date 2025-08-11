@@ -3,122 +3,12 @@ import duckdb
 import pandas as pd
 import plotly.express as px
 import streamlit as st
-import time
 from datetime import datetime
-
-# --- NDJSON reader helper ---
-def read_ndjson(uploaded):
-    """Baca NDJSON dari st.file_uploader atau file-like object."""
-    if uploaded is None:
-        return None
-    try:
-        uploaded.seek(0)
-    except Exception:
-        pass
-    try:
-        return pd.read_json(uploaded, lines=True)
-    except Exception as e:
-        st.error(f"Gagal membaca NDJSON: {e}")
-        return None
-
-# --- Normalisasi baris Vision → schema vision_costs ---
-VISION_COLS = [
-    "id","project","network","timestamp","tx_hash","contract","function_name",
-    "block_number","gas_used","gas_price_wei","cost_eth","cost_idr","meta_json"
-]
-
-def map_vision_rows(rows: list[dict]) -> pd.DataFrame:
-    """Terima list(dict) dari NDJSON, kembalikan DataFrame sesuai VISION_COLS."""
-    if not rows:
-        return pd.DataFrame(columns=VISION_COLS)
-
-    d = pd.DataFrame(rows).copy()
-    # id fallback: tx_hash::function_name
-    if "id" not in d.columns or d["id"].isna().any():
-        d["id"] = d.apply(lambda r: f"{r.get('tx_hash','')}::{(r.get('function_name') or '')}".strip(), axis=1)
-
-    # meta_json fallback
-    if "meta_json" not in d.columns:
-        if "meta" in d.columns:
-            d["meta_json"] = d["meta"].apply(lambda x: json.dumps(x) if isinstance(x, dict) else (x if x else "{}"))
-        else:
-            d["meta_json"] = "{}"
-
-    # kolom wajib + tipe
-    for c in VISION_COLS:
-        if c not in d.columns:
-            d[c] = None
-    d["timestamp"] = pd.to_datetime(d["timestamp"], errors="coerce").fillna(pd.Timestamp.utcnow())
-    for numc in ["block_number","gas_used","gas_price_wei","cost_eth","cost_idr"]:
-        d[numc] = pd.to_numeric(d[numc], errors="coerce")
-    if "project" in d.columns:
-        d["project"] = d["project"].fillna("STC")
-    else:
-        d["project"] = "STC"
-
-    return d[VISION_COLS]
-
-# --- Watcher NDJSON (append-only) ---
-def watch_ndjson_file(path: str, state_key: str = "live_cost_offset") -> int:
-    """
-    Baca baris baru dari file NDJSON append-only.
-    Simpan offset terakhir di st.session_state[state_key].
-    Return: jumlah baris yang diingest.
-    """
-    if not os.path.exists(path):
-        st.warning("File NDJSON belum ada / path salah.")
-        return 0
-
-    offset = st.session_state.get(state_key, 0)
-    with open(path, "rb") as f:
-        f.seek(offset)
-        chunk = f.read()
-        new_offset = f.tell()
-    if new_offset == offset:
-        return 0  # tidak ada tambahan
-
-    # parse baris baru
-    lines = [ln for ln in chunk.splitlines() if ln.strip()]
-    rows = []
-    for ln in lines:
-        try:
-            rows.append(json.loads(ln.decode("utf-8", "ignore")))
-        except Exception:
-            pass
-
-    if not rows:
-        st.session_state[state_key] = new_offset
-        return 0
-
-    d = map_vision_rows(rows)
-    n = upsert("vision_costs", d, ["id"], VISION_COLS)
-    st.session_state[state_key] = new_offset
-    return n
-
-# --- CSV reader yang toleran (mobile-friendly) ---
-def read_csv_any(uploaded):
-    """Baca CSV dari st.file_uploader apa pun MIME/ekstensinya."""
-    if uploaded is None:
-        return None
-    # coba pointer ke awal (kalau objeknya mendukung)
-    try:
-        uploaded.seek(0)
-    except Exception:
-        pass
-    # percobaan 1: langsung ke pandas
-    try:
-        return pd.read_csv(uploaded, engine="python", on_bad_lines="skip", encoding="utf-8")
-    except Exception:
-        # percobaan 2: paksa decode bytes → StringIO
-        data = uploaded.getvalue() if hasattr(uploaded, "getvalue") else uploaded.read()
-        return pd.read_csv(io.StringIO(data.decode("utf-8", "ignore")),
-                           engine="python", on_bad_lines="skip")
 
 # -------------------------------
 # App & DB setup
 # -------------------------------
 st.set_page_config(page_title="STC Analytics (Hybrid)", layout="wide")
-st.sidebar.image("assets/stc-logo.png", width=120)
 
 # Quick CSS theme (dark + teal accents)
 st.markdown("""
@@ -143,14 +33,8 @@ div[data-testid="stMetric"]{
 </style>
 """, unsafe_allow_html=True)
 
-DB_PATH = (
-    os.getenv("EDA_DB_PATH")
-    or st.secrets.get("EDA_DB_PATH", "/tmp/stc_analytics.duckdb")
-)
-SWC_KB_PATH = (
-    os.getenv("SWC_KB_PATH")
-    or st.secrets.get("SWC_KB_PATH", "swc_kb.json")
-)
+DB_PATH = os.getenv("EDA_DB_PATH", "stc_analytics.duckdb")
+SWC_KB_PATH = os.getenv("SWC_KB_PATH", "swc_kb.json")
 
 def ensure_db():
     con = duckdb.connect(DB_PATH)
@@ -488,7 +372,10 @@ if page == "Cost (Vision)":
                 type=["ndjson","jsonl"], key="nd_cost"
             )
         with right:
-            cs = st.file_uploader("Upload CSV (dari STC-Vision)", type=None, key="csv_cost")
+            cs = st.file_uploader(
+                "Upload CSV (dari STC-Vision)",
+                type=["csv"], key="csv_cost"
+            )
 
         # Info + link sumber data (MASIH di dalam expander)
         st.info(
@@ -524,40 +411,6 @@ if page == "Cost (Vision)":
             )
 
         ing = 0
-
-      # --- LIVE MODE: Watch file NDJSON append-only ---
-with st.expander("🔴 Live mode — Watch NDJSON (append-only)", expanded=False):
-    st.write("Jalankan script collector yang menulis **vision_costs.ndjson** secara terus-menerus, lalu set path file di bawah.")
-    col_live = st.columns(3)
-    with col_live[0]:
-        live_enabled = st.checkbox("Enable live mode", value=st.session_state.get("live_cost_enabled", False), key="live_cost_enabled")
-    with col_live[1]:
-        live_interval = st.number_input("Refresh (detik)", 1, 60, value=5, step=1, key="live_cost_interval")
-    with col_live[2]:
-        live_auto = st.checkbox("Auto refresh", value=True, key="live_cost_auto")
-
-    live_path = st.text_input("Path file NDJSON (append-only)", value=st.session_state.get("live_cost_path","vision_costs.ndjson"), key="live_cost_path")
-
-    col_btn = st.columns(2)
-    with col_btn[0]:
-        if st.button("➡️ Ingest sekali (baca baris baru)"):
-            if live_path.strip():
-                added = watch_ndjson_file(live_path.strip())
-                st.success(f"Masuk {added} baris baru dari live file.")
-            else:
-                st.warning("Isi path file NDJSON dulu.")
-    with col_btn[1]:
-        if st.button("♻️ Reset offset"):
-            st.session_state["live_cost_offset"] = 0
-            st.info("Offset live di-reset. Ingest berikutnya akan membaca ulang dari awal file.")
-
-    # Auto loop sederhana (blocking sleep + rerun)
-    if live_enabled and live_auto and live_path.strip():
-        added = watch_ndjson_file(live_path.strip())
-        if added:
-            st.toast(f"Live ingest: +{added} baris", icon="✅")
-        time.sleep(live_interval)
-        st.experimental_rerun()
 
         def map_csv_cost(df_raw: pd.DataFrame) -> pd.DataFrame:
             m = {
@@ -686,7 +539,7 @@ elif page == "Security (SWC)":
     with st.expander("Ingest CSV/NDJSON SWC Findings", expanded=False):
         left, right = st.columns(2)
         with left:
-            swc_csv = st.file_uploader("Upload CSV swc_findings.csv", type=None, key="swc_csv")
+            swc_csv = st.file_uploader("Upload CSV swc_findings.csv", type=["csv"], key="swc_csv")
         with right:
             swc_nd = st.file_uploader("Upload NDJSON swc_findings.ndjson", type=["ndjson","jsonl"], key="swc_nd")
 
@@ -755,9 +608,9 @@ elif page == "Security (SWC)":
         # Auto-ingest (langsung proses saat file di-upload)
         ing = 0
         if swc_csv is not None:
-    d = read_csv_any(swc_csv)
-    d = map_swc(d)
-    ing += upsert("swc_findings", d, ["finding_id"], d.columns.tolist())
+            d = pd.read_csv(swc_csv)
+            d = map_swc(d)
+            ing += upsert("swc_findings", d, ["finding_id"], d.columns.tolist())
 
         if swc_nd is not None:
             rows = []
@@ -855,9 +708,9 @@ else:
     with st.expander("Ingest CSV Bench (runs & tx)", expanded=False):
         col1,col2 = st.columns(2)
         with col1:
-            runs = st.file_uploader("bench_runs.csv", type=None, key="runs_csv")
+            runs = st.file_uploader("bench_runs.csv", type=["csv"], key="runs_csv")
             if runs is not None:
-    d = read_csv_any(runs)
+                d = pd.read_csv(runs)
                 cols = ["run_id","timestamp","network","scenario","contract","function_name","concurrency",
                         "tx_per_user","tps_avg","tps_peak","p50_ms","p95_ms","success_rate"]
                 for c in cols:
@@ -867,9 +720,9 @@ else:
                 n = upsert("bench_runs", d, ["run_id"], cols)
                 st.success(f"{n} baris masuk ke bench_runs.")
         with col2:
-            tx = st.file_uploader("bench_tx.csv", type=None, key="tx_csv")
+            tx = st.file_uploader("bench_tx.csv", type=["csv"], key="tx_csv")
             if tx is not None:
-    d = read_csv_any(tx)
+                d = pd.read_csv(tx)
                 cols = ["run_id","tx_hash","submitted_at","mined_at","latency_ms","status","gas_used","gas_price_wei","block_number","function_name"]
                 for c in cols:
                     if c not in d.columns:
