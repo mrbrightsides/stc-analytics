@@ -380,6 +380,8 @@ if page == "Cost (Vision)":
                 st.session_state["live_cost_offset"] = 0
                 st.info("Offset live di-reset. Ingest berikutnya membaca ulang dari awal.")
 
+tab = st.sidebar.radio("Pilih tab", ["Cost (Vision)", "Security (SWC)", "Performance (Bench)"])
+
 # --- Auto loop hanya untuk tab Cost (Vision) ---
 if tab == "Cost (Vision)":
     live_enabled = st.session_state.get("live_cost_enabled", False)
