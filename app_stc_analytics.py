@@ -1,12 +1,13 @@
-import os, json, re, io
+import os, json, re, io, time
 import duckdb
 import pandas as pd
 import plotly.express as px
 import streamlit as st
-import time
 from datetime import datetime
 
-# --- NDJSON reader helper ---
+# =========================
+# Helpers: IO
+# =========================
 def read_ndjson(uploaded):
     """Baca NDJSON dari st.file_uploader atau file-like object."""
     if uploaded is None:
@@ -21,19 +22,19 @@ def read_ndjson(uploaded):
         st.error(f"Gagal membaca NDJSON: {e}")
         return None
 
-# --- Normalisasi baris Vision → schema vision_costs ---
+# Normalisasi schema Vision
 VISION_COLS = [
     "id","project","network","timestamp","tx_hash","contract","function_name",
     "block_number","gas_used","gas_price_wei","cost_eth","cost_idr","meta_json"
 ]
 
 def map_vision_rows(rows: list[dict]) -> pd.DataFrame:
-    """Terima list(dict) dari NDJSON, kembalikan DataFrame sesuai VISION_COLS."""
+    """Terima list(dict) NDJSON → DataFrame sesuai VISION_COLS."""
     if not rows:
         return pd.DataFrame(columns=VISION_COLS)
-
     d = pd.DataFrame(rows).copy()
-    # id fallback: tx_hash::function_name
+
+    # id fallback
     if "id" not in d.columns or d["id"].isna().any():
         d["id"] = d.apply(lambda r: f"{r.get('tx_hash','')}::{(r.get('function_name') or '')}".strip(), axis=1)
 
@@ -46,38 +47,26 @@ def map_vision_rows(rows: list[dict]) -> pd.DataFrame:
 
     # kolom wajib + tipe
     for c in VISION_COLS:
-        if c not in d.columns:
-            d[c] = None
+        if c not in d.columns: d[c] = None
     d["timestamp"] = pd.to_datetime(d["timestamp"], errors="coerce").fillna(pd.Timestamp.utcnow())
     for numc in ["block_number","gas_used","gas_price_wei","cost_eth","cost_idr"]:
         d[numc] = pd.to_numeric(d[numc], errors="coerce")
-    if "project" in d.columns:
-        d["project"] = d["project"].fillna("STC")
-    else:
-        d["project"] = "STC"
-
+    d["project"] = d.get("project", "STC")
+    d["project"] = d["project"].fillna("STC")
     return d[VISION_COLS]
 
-# --- Watcher NDJSON (append-only) ---
 def watch_ndjson_file(path: str, state_key: str = "live_cost_offset") -> int:
-    """
-    Baca baris baru dari file NDJSON append-only.
-    Simpan offset terakhir di st.session_state[state_key].
-    Return: jumlah baris yang diingest.
-    """
+    """Baca baris baru dari file NDJSON append-only, simpan offset di session_state."""
     if not os.path.exists(path):
         st.warning("File NDJSON belum ada / path salah.")
         return 0
-
     offset = st.session_state.get(state_key, 0)
     with open(path, "rb") as f:
         f.seek(offset)
         chunk = f.read()
         new_offset = f.tell()
     if new_offset == offset:
-        return 0  # tidak ada tambahan
-
-    # parse baris baru
+        return 0
     lines = [ln for ln in chunk.splitlines() if ln.strip()]
     rows = []
     for ln in lines:
@@ -85,42 +74,33 @@ def watch_ndjson_file(path: str, state_key: str = "live_cost_offset") -> int:
             rows.append(json.loads(ln.decode("utf-8", "ignore")))
         except Exception:
             pass
-
-    if not rows:
-        st.session_state[state_key] = new_offset
-        return 0
-
-    d = map_vision_rows(rows)
-    n = upsert("vision_costs", d, ["id"], VISION_COLS)
     st.session_state[state_key] = new_offset
-    return n
+    if not rows:
+        return 0
+    d = map_vision_rows(rows)
+    return upsert("vision_costs", d, ["id"], VISION_COLS)
 
-# --- CSV reader yang toleran (mobile-friendly) ---
 def read_csv_any(uploaded):
-    """Baca CSV dari st.file_uploader apa pun MIME/ekstensinya."""
+    """CSV reader toleran (mobile-friendly)."""
     if uploaded is None:
         return None
-    # coba pointer ke awal (kalau objeknya mendukung)
     try:
         uploaded.seek(0)
     except Exception:
         pass
-    # percobaan 1: langsung ke pandas
     try:
         return pd.read_csv(uploaded, engine="python", on_bad_lines="skip", encoding="utf-8")
     except Exception:
-        # percobaan 2: paksa decode bytes → StringIO
         data = uploaded.getvalue() if hasattr(uploaded, "getvalue") else uploaded.read()
         return pd.read_csv(io.StringIO(data.decode("utf-8", "ignore")),
                            engine="python", on_bad_lines="skip")
 
-# -------------------------------
-# App & DB setup
-# -------------------------------
+# =========================
+# App & Theme
+# =========================
 st.set_page_config(page_title="STC Analytics (Hybrid)", layout="wide")
 st.sidebar.image("assets/stc-logo.png", width=120)
 
-# Quick CSS theme (dark + teal accents)
 st.markdown("""
 <style>
 :root { --accent:#20c997; --accent2:#7c4dff; }
@@ -143,34 +123,30 @@ div[data-testid="stMetric"]{
 </style>
 """, unsafe_allow_html=True)
 
-DB_PATH = (
-    os.getenv("EDA_DB_PATH")
-    or st.secrets.get("EDA_DB_PATH", "/tmp/stc_analytics.duckdb")
-)
-SWC_KB_PATH = (
-    os.getenv("SWC_KB_PATH")
-    or st.secrets.get("SWC_KB_PATH", "swc_kb.json")
-)
+# =========================
+# DuckDB
+# =========================
+DB_PATH = os.getenv("EDA_DB_PATH") or st.secrets.get("EDA_DB_PATH", "/tmp/stc_analytics.duckdb")
+SWC_KB_PATH = os.getenv("SWC_KB_PATH") or st.secrets.get("SWC_KB_PATH", "swc_kb.json")
 
 def ensure_db():
     con = duckdb.connect(DB_PATH)
     con.execute("""
 CREATE TABLE IF NOT EXISTS vision_costs (
-    id TEXT PRIMARY KEY,
-    project TEXT,
-    network TEXT,
-    timestamp TIMESTAMP,
-    tx_hash TEXT,
-    contract TEXT,
-    function_name TEXT,
-    block_number BIGINT,
-    gas_used BIGINT,
-    gas_price_wei BIGINT,
-    cost_eth DOUBLE,
-    cost_idr DOUBLE,
-    meta_json TEXT
-);
-""")
+  id TEXT PRIMARY KEY,
+  project TEXT,
+  network TEXT,
+  timestamp TIMESTAMP,
+  tx_hash TEXT,
+  contract TEXT,
+  function_name TEXT,
+  block_number BIGINT,
+  gas_used BIGINT,
+  gas_price_wei BIGINT,
+  cost_eth DOUBLE,
+  cost_idr DOUBLE,
+  meta_json TEXT
+);""")
     con.execute("""CREATE TABLE IF NOT EXISTS swc_findings (
       finding_id TEXT PRIMARY KEY,
       timestamp TIMESTAMP, network TEXT, contract TEXT, file TEXT,
@@ -195,249 +171,9 @@ def drop_all():
         con.execute(f"DROP TABLE IF EXISTS {t};")
     con.close()
 
-# -------------------------------
-# SWC KB loader
-# -------------------------------
-def load_swc_kb():
-    """
-    Load SWC KB from JSON file.
-    Supports:
-      1) List of objects: {id,title,description,mitigation}
-      2) Dict keyed by SWC-ID: { "SWC-xxx": {title, description|impact, mitigation|fix[]} }
-    Returns: Dict[SWC-ID] -> {title, description, mitigation}
-    """
-    try:
-        with open(SWC_KB_PATH, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        if isinstance(data, list):
-            out = {}
-            for item in data:
-                sid = str(item.get("id", "")).strip()
-                if not sid:
-                    continue
-                out[sid] = {
-                    "title": item.get("title", ""),
-                    "description": item.get("description", ""),
-                    "mitigation": item.get("mitigation", ""),
-                }
-            return out
-        if isinstance(data, dict):
-            out = {}
-            for sid, val in data.items():
-                out[str(sid)] = {
-                    "title": val.get("title", ""),
-                    "description": val.get("description", val.get("impact", "")),
-                    "mitigation": (
-                        val.get("mitigation")
-                        if isinstance(val.get("mitigation"), str)
-                        else "\n".join(val.get("fix", [])) if isinstance(val.get("fix"), list) else ""
-                    ),
-                }
-            return out
-        return {}
-    except FileNotFoundError:
-        return {}
-    except Exception:
-        return {}
-
-# Make sure DB & tables exist
-ensure_db()
-
 def get_conn():
     return duckdb.connect(DB_PATH)
 
-# -------------------------------
-# UI helpers: About + Help + Sample templates + CSV util
-# -------------------------------
-GITHUB_URL = "https://github.com/mrbrightsides"
-
-with st.sidebar.expander("📘 About / Cara pakai", expanded=True):
-    st.markdown(
-        """
-### STC Analytics — Hybrid Dashboard
-
-Satu tempat buat pantau **biaya gas (Vision)**, **temuan keamanan (SWC)**, dan **hasil benchmark (Bench)** — cepat, ringan, dan terstruktur.
-
----
-
-#### 🚀 Alur kerja singkat
-1. **Upload data** (CSV / NDJSON) di tiap tab.  
-2. (Opsional) **Load existing stored data** di sidebar untuk pakai data yang sudah tersimpan.  
-3. Gunakan **filter** untuk eksplorasi + buka **SWC Knowledge** buat penjelasan tiap _SWC-ID_.  
-4. **Export** hasil filter via tombol **Download CSV**.
-
-> ℹ️ Catatan: WebApp ini hanya sebagai **reader/analytics**. Analisis kelemahan detail tetap mengacu ke referensi SWC & tool audit resmi.
-
----
-
-#### 📦 Format & sumber data (ringkas)
-- **Vision (Cost)**  
-  - NDJSON: `id, project, network, timestamp, tx_hash, contract, function_name, block_number, gas_used, gas_price_wei, cost_eth, cost_idr, meta_json`.  
-  - CSV (dari STC-Vision): pakai **Template CSV (Vision)** / **Contoh NDJSON (Vision)** di tab.
-- **Security (SWC)**  
-  - CSV/NDJSON: `finding_id (opsional), timestamp, network, contract, file, line_start, line_end, swc_id, title, severity, confidence, status, remediation, commit_hash`.  
-  - Kalau `finding_id` kosong, app akan auto-generate `contract::swc_id::line_start` & **de-dup** per batch.  
-  - Lihat tombol **Template CSV (SWC)** & **Contoh NDJSON (SWC)** di tab.
-- **Performance (Bench)**  
-  - `bench_runs.csv`: `run_id, timestamp, network, scenario, contract, function_name, concurrency, tx_per_user, tps_avg, tps_peak, p50_ms, p95_ms, success_rate`.  
-  - `bench_tx.csv`: `run_id, tx_hash, submitted_at, mined_at, latency_ms, status, gas_used, gas_price_wei, block_number, function_name`.
-
----
-
-#### 🧰 Tips & trik
-- Struktur kolom berubah? Pakai **Reset schema (DROP & CREATE)** di sidebar.  
-- Mau mulai bersih? Klik **Clear all DuckDB data**.  
-- Gunakan **date range** & **select filter** buat narrowing cepat.
-
----
-
-#### 🔒 Privasi
-Semua data disimpan **lokal** di **DuckDB**. Aplikasi ini tidak mengirim data ke layanan eksternal.
-
----
-
-#### 🙌 Dukungan & kontributor
-- ⭐ **Star / Fork**: [GitHub repo]({https://github.com/mrbrightsides/stc-analytics})
-- Made for STC — _lightweight analytics for web3 dev teams_.
-
-Versi UI: v1.0 • Streamlit + DuckDB • Theme Dark
-""",
-        unsafe_allow_html=False,
-    )
-
-FAQ_MD = """
-### FAQs — STC Analytics
-
-**1) Apa itu STC Analytics?**  
-STC Analytics adalah dashboard hibrida untuk memvisualisasikan **biaya gas (Vision)**, **temuan keamanan SWC**, dan **hasil benchmark** smart contract.
-
-**2) Apa yang dapat dilakukan?**  
-Unggah CSV/NDJSON, lihat metrik/grafik/tabel, unduh template & hasil filter, serta baca ringkasan **SWC Knowledge**.
-
-**3) Penyimpanan & privasi data**  
-Data disimpan **lokal** di DuckDB (`stc_analytics.duckdb`) pada mesin Anda; tidak dikirim ke pihak ketiga. Gunakan **Clear data** / **Reset schema** bila diperlukan.
-
-**4) Format yang didukung**  
-- Vision: `Network, Tx Hash, Block, Gas Used, Gas Price (Gwei), Estimated Fee (ETH/Rp), Contract, Function, Timestamp, Status`  
-- SWC: `finding_id (opsional), timestamp, network, contract, file, line_start, line_end, swc_id, title, severity, confidence, status, remediation, commit_hash`  
-- Bench (runs): `run_id, timestamp, network, scenario, contract, function_name, concurrency, tx_per_user, tps_avg, tps_peak, p50_ms, p95_ms, success_rate`  
-- Bench (tx opsional): `run_id, tx_hash, submitted_at, mined_at, latency_ms, status, gas_used, gas_price_wei, block_number, function_name`
-
-**5) Akurasi**  
-Dashboard menampilkan data sumber; akurasi bergantung input. SWC **bukan** audit engine, gunakan sebagai panduan.
-
-**6) SWC Knowledge**  
-Dibaca dari `swc_kb.json` (bisa diatur via `SWC_KB_PATH`). Mendukung format **list** atau **dict** berindeks SWC-ID. Anda bisa menambah/ubah konten.
-
-**7) Duplikasi temuan SWC**  
-PK `finding_id`. Jika kosong, app membuat **contract::swc_id::line_start** dan de-dup per batch.
-
-**8) Impor lambat?**  
-Pengaruh ukuran file, parsing, upsert, render grafik. Pecah file besar, pastikan header sesuai template, gunakan angka bersih & UTF-8.
-
-**9) Cara meningkatkan kualitas**  
-Ikuti template, konsisten `timestamp/function_name/network`. SWC: stabilkan `finding_id`. Bench: `run_id` unik & metrik lengkap.
-
-**10) Integrasi AI**  
-Tidak aktif secara default. Bisa ditambahkan (BYO API key) sesuai kebijakan data organisasi.
-
-**11) Ekspor data**  
-Gunakan tombol **Download hasil filter (CSV)** di setiap tab.
-
-**12) Multi-chain**  
-Didukung; gunakan filter **Network**.
-
-**13) Istilah Bench**  
-TPS Peak/Avg, p50_ms/p95_ms (latensi), Success Rate.
-
-**14) Troubleshooting**  
-Kolom hilang/PK conflict/parsing tanggal/angka & encoding/berkas besar—lihat bantuan di setiap tab atau gunakan template resmi.
-"""
-
-with st.expander("❓ FAQ", expanded=False):
-    st.markdown(FAQ_MD)
-
-HELP_COST = """
-**Apa itu Cost (Vision)?**  
-Menampilkan biaya gas per transaksi/function dari file output STC-Vision.
-
-**Format CSV (header contoh):**  
-`Network, Tx Hash, Block, Gas Used, Gas Price (Gwei), Estimated Fee (ETH), Estimated Fee (Rp), Contract, Function, Timestamp, Status`
-
-**Tips:** Timestamp boleh kosong (kita auto-isi); NDJSON didukung (1 objek per baris).
-"""
-
-HELP_SWC = """
-**Apa itu Security (SWC)?**  
-Menampilkan daftar temuan berdasarkan **Smart Contract Weakness Classification**.
-
-**Kolom minimal:**  
-`finding_id (opsional), timestamp, network, contract, file, line_start, line_end, swc_id, title, severity, confidence, status, remediation, commit_hash`
-
-> Kalau `finding_id` kosong, kita auto-generate **contract::swc_id::line_start** dan *de-dup* batch sebelum upsert.
-"""
-
-HELP_BENCH = """
-**Apa itu Performance (Bench)?**  
-Menampilkan hasil uji beban (TPS/latency/success rate).
-
-**runs.csv:**  
-`run_id, timestamp, network, scenario, contract, function_name, concurrency, tx_per_user, tps_avg, tps_peak, p50_ms, p95_ms, success_rate`
-
-**bench_tx.csv (opsional):**  
-`run_id, tx_hash, submitted_at, mined_at, latency_ms, status, gas_used, gas_price_wei, block_number, function_name`
-"""
-
-def show_help(which: str):
-    with st.expander("🆘 Help", expanded=False):
-        if which == "cost":
-            st.markdown(HELP_COST)
-        elif which == "swc":
-            st.markdown(HELP_SWC)
-        elif which == "bench":
-            st.markdown(HELP_BENCH)
-
-def sample_templates():
-    """Buat sample DF utk user download sebagai template."""
-    cost_cols = ["Network","Tx Hash","From","To","Block","Gas Used","Gas Price (Gwei)","Estimated Fee (ETH)","Estimated Fee (Rp)","Contract","Function","Timestamp","Status"]
-    swc_cols  = ["finding_id","timestamp","network","contract","file","line_start","line_end","swc_id","title","severity","confidence","status","remediation","commit_hash"]
-    runs_cols = ["run_id","timestamp","network","scenario","contract","function_name","concurrency","tx_per_user","tps_avg","tps_peak","p50_ms","p95_ms","success_rate"]
-    tx_cols   = ["run_id","tx_hash","submitted_at","mined_at","latency_ms","status","gas_used","gas_price_wei","block_number","function_name"]
-
-    df_cost = pd.DataFrame([{
-        "Network":"Sepolia","Tx Hash":"0x...","From":"0x...","To":"0x...","Block":123456,
-        "Gas Used":21000,"Gas Price (Gwei)":22.5,"Estimated Fee (ETH)":0.00047,"Estimated Fee (Rp)":15000,
-        "Contract":"SmartReservation","Function":"bookHotel","Timestamp":pd.Timestamp.utcnow().isoformat(),"Status":"Success"
-    }], columns=cost_cols)
-
-    df_swc = pd.DataFrame([{
-        "finding_id":"","timestamp":pd.Timestamp.utcnow().isoformat(),"network":"Arbitrum Sepolia",
-        "contract":"SmartTourismToken","file":"contracts/SmartTourismToken.sol",
-        "line_start":332,"line_end":342,"swc_id":"SWC-108","title":"Potential issue SWC-108 detected",
-        "severity":"Medium","confidence":0.83,"status":"Open","remediation":"Refactor code and add checks","commit_hash":"abc123"
-    }], columns=swc_cols)
-
-    df_runs = pd.DataFrame([{
-        "run_id":"run-001","timestamp":pd.Timestamp.utcnow().isoformat(),"network":"Sepolia","scenario":"LoadTestSmall",
-        "contract":"SmartReservation","function_name":"checkIn","concurrency":50,"tx_per_user":5,
-        "tps_avg":85.2,"tps_peak":110.4,"p50_ms":220,"p95_ms":540,"success_rate":0.97
-    }], columns=runs_cols)
-
-    df_tx = pd.DataFrame([{
-        "run_id":"run-001","tx_hash":"0x...","submitted_at":pd.Timestamp.utcnow().isoformat(),"mined_at":pd.Timestamp.utcnow().isoformat(),
-        "latency_ms":450,"status":"success","gas_used":21000,"gas_price_wei":"22000000000","block_number":123456,"function_name":"checkIn"
-    }], columns=tx_cols)
-
-    return df_cost, df_swc, df_runs, df_tx
-
-def csv_bytes(df: pd.DataFrame) -> bytes:
-    buff = io.StringIO()
-    df.to_csv(buff, index=False)
-    return buff.getvalue().encode("utf-8")
-
-# -------------------------------
-# Helpers (DB)
-# -------------------------------
 def upsert(table: str, df: pd.DataFrame, key_cols: list, cols: list) -> int:
     if df is None or df.empty:
         return 0
@@ -455,110 +191,117 @@ def upsert(table: str, df: pd.DataFrame, key_cols: list, cols: list) -> int:
     con.close()
     return n
 
-# -------------------------------
-# Sidebar
-# -------------------------------
+# =========================
+# SWC KB loader
+# =========================
+def load_swc_kb():
+    try:
+        with open(SWC_KB_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if isinstance(data, list):
+            out = {}
+            for item in data:
+                sid = str(item.get("id", "")).strip()
+                if not sid: continue
+                out[sid] = {
+                    "title": item.get("title", ""),
+                    "description": item.get("description", ""),
+                    "mitigation": item.get("mitigation", ""),
+                }
+            return out
+        if isinstance(data, dict):
+            out = {}
+            for sid, val in data.items():
+                out[str(sid)] = {
+                    "title": val.get("title", ""),
+                    "description": val.get("description", val.get("impact", "")),
+                    "mitigation": (val.get("mitigation") if isinstance(val.get("mitigation"), str)
+                                   else "\n".join(val.get("fix", [])) if isinstance(val.get("fix"), list) else "")
+                }
+            return out
+        return {}
+    except FileNotFoundError:
+        return {}
+    except Exception:
+        return {}
+
+# =========================
+# Sidebar — About & Data controls
+# =========================
+ensure_db()
+
+with st.sidebar.expander("📘 About / Cara pakai", expanded=True):
+    st.markdown("""
+### STC Analytics — Hybrid Dashboard
+Pantau **biaya gas (Vision)**, **temuan keamanan (SWC)**, dan **hasil benchmark (Bench)** — cepat, ringan, terstruktur.
+
+**Alur singkat**
+1) Unggah CSV/NDJSON di tiap tab  
+2) (Opsional) centang *Load existing stored data*  
+3) Gunakan filter, baca **SWC Knowledge**, dan **Download CSV** hasil filter
+
+**Privasi** — semua data lokal di DuckDB.
+""")
+
 st.sidebar.title("🧭 STC Analytics")
 with st.sidebar.expander("⚙️ Data control", expanded=True):
     load_existing = st.checkbox("Load existing stored data", value=False, key="load_existing")
-    if st.button("🧹 Clear all DuckDB data", use_container_width=True):
-        con = duckdb.connect(DB_PATH)
-        for t in ["vision_costs","swc_findings","bench_runs","bench_tx"]:
-            con.execute(f"DELETE FROM {t};")
-        con.close()
-        st.success("Database cleared. Siap upload data baru.")
-    if st.button("🧨 Reset schema (DROP & CREATE)", use_container_width=True):
-        drop_all()
-        ensure_db()
-        st.success("Schema di-reset. Tabel dibuat ulang dengan struktur terbaru.")
+    col_btn = st.columns(2)
+    with col_btn[0]:
+        if st.button("🧹 Clear all DuckDB data", use_container_width=True):
+            con = duckdb.connect(DB_PATH)
+            for t in ["vision_costs","swc_findings","bench_runs","bench_tx"]:
+                con.execute(f"DELETE FROM {t};")
+            con.close()
+            st.success("Database cleared.")
+    with col_btn[1]:
+        if st.button("🧨 Reset schema (DROP & CREATE)", use_container_width=True):
+            drop_all(); ensure_db()
+            st.success("Schema di-reset & dibuat ulang.")
 
 page = st.sidebar.radio("Pilih tab", ["Cost (Vision)","Security (SWC)","Performance (Bench)"], index=0)
 
-# -------------------------------
+# =========================
 # COST (Vision)
-# -------------------------------
+# =========================
 if page == "Cost (Vision)":
     st.title("💰 Cost Analytics — STC Vision")
 
     with st.expander("Ingest data (NDJSON/CSV) → DuckDB", expanded=False):
         left, right = st.columns(2)
         with left:
-            nd = st.file_uploader(
-                "Upload NDJSON (vision_costs.ndjson / jsonl)",
-                type=["ndjson","jsonl"], key="nd_cost"
-            )
+            nd = st.file_uploader("Upload NDJSON (vision_costs.ndjson / jsonl)", type=["ndjson","jsonl"], key="nd_cost")
         with right:
+            # type=None agar mobile file picker tdk memfilter (kasus abu-abu di Android)
             cs = st.file_uploader("Upload CSV (dari STC-Vision)", type=None, key="csv_cost")
 
-        # Info + link sumber data (MASIH di dalam expander)
-        st.info(
-            "Sumber data Vision diambil dari **STC GasVision**. "
-            "Set **Jaringan & Masukkan TxHash** → "
-            "**Download CSV** → upload di panel ini.",
-            icon="ℹ️",
-        )
-        st.link_button(
-            "🔗 Buka STC GasVision",
-            "https://stc-gasvision.streamlit.app/",
-            use_container_width=True,
-        )
+        st.info("Sumber dari **STC GasVision** → set Jaringan & masukkan TxHash → **Download CSV** → upload di sini.", icon="ℹ️")
+        st.link_button("🔗 Buka STC GasVision", "https://stc-gasvision.streamlit.app/", use_container_width=True)
 
-        # Templates / samples (MASIH di dalam expander)
-        tpl_cost, _, _, _ = sample_templates()
+        # Templates
+        def sample_templates():
+            cost_cols = ["Network","Tx Hash","From","To","Block","Gas Used","Gas Price (Gwei)","Estimated Fee (ETH)","Estimated Fee (Rp)","Contract","Function","Timestamp","Status"]
+            df_cost = pd.DataFrame([{
+                "Network":"Sepolia","Tx Hash":"0x...","From":"0x...","To":"0x...","Block":123456,
+                "Gas Used":21000,"Gas Price (Gwei)":22.5,"Estimated Fee (ETH)":0.00047,"Estimated Fee (Rp)":15000,
+                "Contract":"SmartReservation","Function":"bookHotel","Timestamp":pd.Timestamp.utcnow().isoformat(),"Status":"Success"
+            }], columns=cost_cols)
+            return df_cost
+
+        def csv_bytes(df: pd.DataFrame) -> bytes:
+            buff = io.StringIO(); df.to_csv(buff, index=False); return buff.getvalue().encode("utf-8")
+
         c1, c2 = st.columns(2)
         with c1:
-            st.download_button(
-                "⬇️ Template CSV (Vision)",
-                data=csv_bytes(tpl_cost),
-                file_name="vision_template.csv",
-                mime="text/csv",
-                use_container_width=True
-            )
+            st.download_button("⬇️ Template CSV (Vision)", data=csv_bytes(sample_templates()),
+                               file_name="vision_template.csv", mime="text/csv", use_container_width=True)
         with c2:
-            st.download_button(
-                "⬇️ Contoh NDJSON (Vision)",
-                data=b'{"id":"demo::bookHotel","network":"Sepolia","cost_idr":15000}\n',
-                file_name="vision_sample.ndjson",
-                mime="application/x-ndjson",
-                use_container_width=True
-            )
+            st.download_button("⬇️ Contoh NDJSON (Vision)",
+                               data=b'{"id":"demo::bookHotel","network":"Sepolia","cost_idr":15000}\n',
+                               file_name="vision_sample.ndjson", mime="application/x-ndjson",
+                               use_container_width=True)
 
-        ing = 0
-
-      # --- LIVE MODE: Watch file NDJSON append-only ---
-with st.expander("🔴 Live mode — Watch NDJSON (append-only)", expanded=False):
-    st.write("Jalankan script collector yang menulis **vision_costs.ndjson** secara terus-menerus, lalu set path file di bawah.")
-    col_live = st.columns(3)
-    with col_live[0]:
-        live_enabled = st.checkbox("Enable live mode", value=st.session_state.get("live_cost_enabled", False), key="live_cost_enabled")
-    with col_live[1]:
-        live_interval = st.number_input("Refresh (detik)", 1, 60, value=5, step=1, key="live_cost_interval")
-    with col_live[2]:
-        live_auto = st.checkbox("Auto refresh", value=True, key="live_cost_auto")
-
-    live_path = st.text_input("Path file NDJSON (append-only)", value=st.session_state.get("live_cost_path","vision_costs.ndjson"), key="live_cost_path")
-
-    col_btn = st.columns(2)
-    with col_btn[0]:
-        if st.button("➡️ Ingest sekali (baca baris baru)"):
-            if live_path.strip():
-                added = watch_ndjson_file(live_path.strip())
-                st.success(f"Masuk {added} baris baru dari live file.")
-            else:
-                st.warning("Isi path file NDJSON dulu.")
-    with col_btn[1]:
-        if st.button("♻️ Reset offset"):
-            st.session_state["live_cost_offset"] = 0
-            st.info("Offset live di-reset. Ingest berikutnya akan membaca ulang dari awal file.")
-
-    # Auto loop sederhana (blocking sleep + rerun)
-    if live_enabled and live_auto and live_path.strip():
-        added = watch_ndjson_file(live_path.strip())
-        if added:
-            st.toast(f"Live ingest: +{added} baris", icon="✅")
-        time.sleep(live_interval)
-        st.experimental_rerun()
-
+        # Mapper CSV → schema vision_costs
         def map_csv_cost(df_raw: pd.DataFrame) -> pd.DataFrame:
             m = {
                 "Network": "network", "Tx Hash": "tx_hash",
@@ -571,28 +314,15 @@ with st.expander("🔴 Live mode — Watch NDJSON (append-only)", expanded=False
                 "Timestamp": "timestamp", "Status": "status"
             }
             df = df_raw.rename(columns=m).copy()
-
             df["project"] = "STC"
-            if "timestamp" in df.columns:
-                df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce").fillna(pd.Timestamp.utcnow())
-            else:
-                df["timestamp"] = pd.Timestamp.utcnow()
-
+            df["timestamp"] = pd.to_datetime(df.get("timestamp", pd.NaT), errors="coerce").fillna(pd.Timestamp.utcnow())
             gwei = pd.to_numeric(df.get("gas_price_gwei", 0), errors="coerce").fillna(0)
             df["gas_price_wei"] = (gwei * 1_000_000_000).round().astype("Int64")
-
             status_series = df.get("status", None)
-            if status_series is not None:
-                df["meta_json"] = status_series.astype(str).apply(lambda s: json.dumps({"status": s}) if s else "{}")
-            else:
-                df["meta_json"] = "{}"
-
+            df["meta_json"] = status_series.astype(str).apply(lambda s: json.dumps({"status": s}) if s else "{}") if status_series is not None else "{}"
             df["id"] = df.apply(lambda r: f"{r.get('tx_hash','')}::{(r.get('function_name') or '')}".strip(), axis=1)
 
-            cols = [
-                "id","project","network","timestamp","tx_hash","contract","function_name",
-                "block_number","gas_used","gas_price_wei","cost_eth","cost_idr","meta_json"
-            ]
+            cols = VISION_COLS
             for c in cols:
                 if c not in df.columns: df[c] = None
             df["block_number"] = pd.to_numeric(df["block_number"], errors="coerce").astype("Int64")
@@ -601,88 +331,138 @@ with st.expander("🔴 Live mode — Watch NDJSON (append-only)", expanded=False
             df["cost_idr"]     = pd.to_numeric(df["cost_idr"], errors="coerce")
             return df[cols]
 
+        ing = 0
+        # NDJSON (drag&drop)
         if nd is not None:
             rows = []
             for line in nd:
+                if not line: continue
                 try:
                     rows.append(json.loads(line.decode("utf-8")))
                 except Exception:
                     pass
             if rows:
-                d = pd.DataFrame(rows)
-                if "id" not in d.columns:
-                    d["id"] = d.apply(lambda r: f"{r.get('tx_hash','')}::{(r.get('function_name') or '')}".strip(), axis=1)
-                if "meta_json" not in d.columns:
-                    if "meta" in d.columns:
-                        d["meta_json"] = d["meta"].apply(lambda x: json.dumps(x) if isinstance(x, dict) else (x if x else "{}"))
-                    else:
-                        d["meta_json"] = "{}"
-                cols = [
-                    "id","project","network","timestamp","tx_hash","contract","function_name",
-                    "block_number","gas_used","gas_price_wei","cost_eth","cost_idr","meta_json"
-                ]
-                for c in cols:
-                    if c not in d.columns: d[c] = None
-                d["timestamp"] = pd.to_datetime(d["timestamp"], errors="coerce").fillna(pd.Timestamp.utcnow())
-                for numc in ["block_number","gas_used","gas_price_wei","cost_eth","cost_idr"]:
-                    d[numc] = pd.to_numeric(d[numc], errors="coerce")
-                ing += upsert("vision_costs", d, ["id"], cols)
+                d = map_vision_rows(rows)
+                ing += upsert("vision_costs", d, ["id"], VISION_COLS)
 
+        # CSV (tanpa filter MIME)
         if cs is not None:
-            raw = pd.read_csv(cs)
+            raw = read_csv_any(cs)
             d = map_csv_cost(raw)
             ing += upsert("vision_costs", d, ["id"], d.columns.tolist())
 
         if ing:
             st.success(f"{ing} baris masuk ke vision_costs.")
 
-    # ← Di sini kita sudah keluar dari expander, tapi masih di dalam blok `if page == ...`
+    # Live mode (watch NDJSON file append-only)
+    with st.expander("🔴 Live mode — Watch NDJSON (append-only)", expanded=False):
+        st.write("Jalankan script collector yang menulis **vision_costs.ndjson** terus-menerus, lalu set path di bawah.")
+        col_live = st.columns(3)
+        with col_live[0]:
+            live_enabled = st.checkbox("Enable live mode", value=st.session_state.get("live_cost_enabled", False), key="live_cost_enabled")
+        with col_live[1]:
+            live_interval = st.number_input("Refresh (detik)", 1, 60, value=5, step=1, key="live_cost_interval")
+        with col_live[2]:
+            live_auto = st.checkbox("Auto refresh", value=True, key="live_cost_auto")
+
+        live_path = st.text_input("Path file NDJSON", value=st.session_state.get("live_cost_path","vision_costs.ndjson"), key="live_cost_path")
+
+        col_btn = st.columns(2)
+        with col_btn[0]:
+            if st.button("➡️ Ingest sekali (baca baris baru)"):
+                if live_path.strip():
+                    added = watch_ndjson_file(live_path.strip())
+                    st.success(f"Masuk {added} baris baru dari live file.")
+                else:
+                    st.warning("Isi path file NDJSON dulu.")
+        with col_btn[1]:
+            if st.button("♻️ Reset offset"):
+                st.session_state["live_cost_offset"] = 0
+                st.info("Offset live di-reset. Ingest berikutnya membaca ulang dari awal.")
+
+        if live_enabled and live_auto and live_path.strip():
+            added = watch_ndjson_file(live_path.strip())
+            if added:
+                st.toast(f"Live ingest: +{added} baris", icon="✅")
+            time.sleep(live_interval)
+            st.experimental_rerun()
+
+    # Guard
     want_load = st.session_state.get("load_existing", False)
-    no_new_upload = (
-        (st.session_state.get('nd_cost') is None) and
-        (st.session_state.get('csv_cost') is None)
-    )
+    no_new_upload = (st.session_state.get('nd_cost') is None) and (st.session_state.get('csv_cost') is None)
     if no_new_upload and not want_load:
-        st.info("Belum ada data cost untuk sesi ini. Upload NDJSON/CSV atau aktifkan ‘Load existing stored data’ di sidebar.")
+        st.info("Belum ada data cost. Upload data atau aktifkan ‘Load existing stored data’.")
         st.stop()
 
+    # View
     con = get_conn()
     df = con.execute("SELECT * FROM vision_costs ORDER BY timestamp DESC").df()
     con.close()
-    ...
 
-# -------------------------------
+    if df.empty:
+        st.info("Belum ada data cost.")
+        st.stop()
+
+    cols = st.columns(3)
+    nets = ["(All)"] + sorted(df["network"].dropna().astype(str).unique().tolist())
+    fns  = ["(All)"] + sorted(df["function_name"].dropna().astype(str).unique().tolist())
+    with cols[0]: f_net = st.selectbox("Network", nets, index=0)
+    with cols[1]: f_fn  = st.selectbox("Function", fns, index=0)
+    with cols[2]:
+        min_d = pd.to_datetime(df["timestamp"]).min().date()
+        max_d = pd.to_datetime(df["timestamp"]).max().date()
+        dr = st.date_input("Rentang Tanggal", (min_d, max_d))
+
+    df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
+    if f_net != "(All)": df = df[df["network"] == f_net]
+    if f_fn  != "(All)": df = df[df["function_name"] == f_fn]
+    if isinstance(dr, tuple) and len(dr) == 2:
+        df = df[(df["timestamp"].dt.date >= dr[0]) & (df["timestamp"].dt.date <= dr[1])]
+
+    c1,c2,c3 = st.columns(3)
+    c1.metric("Total Transactions", f"{len(df):,}")
+    c2.metric("Avg Cost (IDR)", f"Rp {df['cost_idr'].mean():,.2f}" if not df.empty else "Rp 0")
+    top = df.groupby('function_name', dropna=False)['cost_idr'].mean().sort_values(ascending=False).head(1)
+    c3.metric("Top Function (Avg Cost)", f"{top.index[0]} — Rp {top.iloc[0]:,.0f}" if len(top)>0 else "-")
+
+    colA,colB = st.columns(2)
+    with colA:
+        agg = df.groupby('function_name', dropna=False)['cost_idr'].mean().reset_index()
+        fig = px.bar(agg, x='function_name', y='cost_idr', title="Avg Cost per Function (IDR)")
+        st.plotly_chart(fig, use_container_width=True)
+    with colB:
+        df_sorted = df.sort_values('timestamp')
+        fig = px.line(df_sorted, x='timestamp', y='cost_idr', color='function_name', title="Cost Trend Over Time")
+        st.plotly_chart(fig, use_container_width=True)
+
+    st.markdown("### Detail Transaksi")
+    show_cols = ["timestamp","network","tx_hash","contract","function_name","block_number","gas_used","gas_price_wei","cost_eth","cost_idr"]
+    st.dataframe(df[show_cols], use_container_width=True)
+    st.download_button("⬇️ Download hasil filter (CSV)",
+                       data=io.StringIO(df[show_cols].to_csv(index=False)).getvalue().encode("utf-8"),
+                       file_name="vision_filtered.csv", mime="text/csv", use_container_width=True)
+
+# =========================
 # SECURITY (SWC)
-# -------------------------------
+# =========================
 elif page == "Security (SWC)":
     st.title("🛡️ Security Analytics — STC for SWC")
 
-    # --- mapping CSV/NDJSON -> schema + id fallback + dedup ---
     def map_swc(df: pd.DataFrame) -> pd.DataFrame:
         cols = ["finding_id","timestamp","network","contract","file","line_start","line_end",
                 "swc_id","title","severity","confidence","status","remediation","commit_hash"]
         for c in cols:
-            if c not in df.columns:
-                df[c] = None
-
-        # fallback id: contract::swc_id::line_start
-        fallback = df.apply(
-            lambda r: f"{r.get('contract','')}::{r.get('swc_id','')}::{r.get('line_start','')}",
-            axis=1
-        )
-
-        # hanya isi yang kosong; jangan timpa yg sudah ada
+            if c not in df.columns: df[c] = None
+        fallback = df.apply(lambda r: f"{r.get('contract','')}::{r.get('swc_id','')}::{r.get('line_start','')}", axis=1)
         if "finding_id" not in df.columns:
             df["finding_id"] = fallback
         else:
             mask = df["finding_id"].isna() | (df["finding_id"].astype(str).str.strip() == "")
             df.loc[mask, "finding_id"] = fallback[mask]
-
         df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce").fillna(pd.Timestamp.utcnow())
         df = df.drop_duplicates(subset=["finding_id"], keep="last").copy()
         return df[cols]
 
-    # --- Ingest (AUTO seperti Bench/Vision) ---
     with st.expander("Ingest CSV/NDJSON SWC Findings", expanded=False):
         left, right = st.columns(2)
         with left:
@@ -690,80 +470,32 @@ elif page == "Security (SWC)":
         with right:
             swc_nd = st.file_uploader("Upload NDJSON swc_findings.ndjson", type=["ndjson","jsonl"], key="swc_nd")
 
-        # ==== DOWNLOAD BUTTONS (konsisten dgn Vision) ====
-        col_dl1, col_dl2 = st.columns(2)
-
-        # Template CSV (SWC)
-        with col_dl1:
-            st.download_button(
-                "⬇️ Template CSV (SWC)",
-                data=csv_bytes(pd.DataFrame(columns=[
-                    "finding_id","timestamp","network","contract","file","line_start","line_end",
-                    "swc_id","title","severity","confidence","status","remediation","commit_hash"
-                ]).head(0)),
-                file_name="swc_findings_template.csv",
-                mime="text/csv",
-                use_container_width=True,
-            )
-
-        # Contoh NDJSON (SWC)
-        with col_dl2:
+        # Template & contoh
+        t1, t2 = st.columns(2)
+        with t1:
+            tmpl = pd.DataFrame(columns=["finding_id","timestamp","network","contract","file","line_start","line_end","swc_id","title","severity","confidence","status","remediation","commit_hash"])
+            buff = io.StringIO(); tmpl.to_csv(buff, index=False)
+            st.download_button("⬇️ Template CSV (SWC)", data=buff.getvalue().encode("utf-8"),
+                               file_name="swc_findings_template.csv", mime="text/csv", use_container_width=True)
+        with t2:
             sample_rows = [
-                {
-                    "finding_id": "",
-                    "timestamp": "2025-08-11T09:45:00Z",
-                    "network": "Sepolia",
-                    "contract": "SmartReservation",
-                    "file": "contracts/SmartReservation.sol",
-                    "line_start": 98,
-                    "line_end": 102,
-                    "swc_id": "SWC-105",
-                    "title": "Potential issue SWC-105 detected",
-                    "severity": "Low",
-                    "confidence": 0.82,
-                    "status": "Open",
-                    "remediation": "Review and document",
-                    "commit_hash": "0xa36e...c5b0",
-                },
-                {
-                    "finding_id": "SmartTourismToken::SWC-108::279",
-                    "timestamp": "2025-08-10T16:20:00Z",
-                    "network": "Arbitrum Sepolia",
-                    "contract": "SmartTourismToken",
-                    "file": "contracts/SmartTourismToken.sol",
-                    "line_start": 279,
-                    "line_end": 288,
-                    "swc_id": "SWC-108",
-                    "title": "Potential issue SWC-108 detected",
-                    "severity": "Medium",
-                    "confidence": 0.87,
-                    "status": "Fixed",
-                    "remediation": "Refactor code and add checks",
-                    "commit_hash": "0xc54f...54c8",
-                },
+                {"finding_id":"","timestamp":pd.Timestamp.utcnow().isoformat(),"network":"Sepolia","contract":"SmartReservation","file":"contracts/SmartReservation.sol","line_start":98,"line_end":102,"swc_id":"SWC-105","title":"Potential issue SWC-105 detected","severity":"Low","confidence":0.82,"status":"Open","remediation":"Review and document","commit_hash":"0xa36e...c5b0"},
+                {"finding_id":"SmartTourismToken::SWC-108::279","timestamp":pd.Timestamp.utcnow().isoformat(),"network":"Arbitrum Sepolia","contract":"SmartTourismToken","file":"contracts/SmartTourismToken.sol","line_start":279,"line_end":288,"swc_id":"SWC-108","title":"Potential issue SWC-108 detected","severity":"Medium","confidence":0.87,"status":"Fixed","remediation":"Refactor code and add checks","commit_hash":"0xc54f...54c8"},
             ]
             ndjson_bytes = ("\n".join(json.dumps(r) for r in sample_rows)).encode("utf-8")
-            st.download_button(
-                "⬇️ Contoh NDJSON (SWC)",
-                data=ndjson_bytes,
-                file_name="swc_findings_sample.ndjson",
-                mime="application/x-ndjson",
-                use_container_width=True,
-            )
-        # ==== END DOWNLOAD BUTTONS ====
+            st.download_button("⬇️ Contoh NDJSON (SWC)", data=ndjson_bytes,
+                               file_name="swc_findings_sample.ndjson", mime="application/x-ndjson", use_container_width=True)
 
-        # Auto-ingest (langsung proses saat file di-upload)
         ing = 0
-        if swc_csv is not None:
-    d = read_csv_any(swc_csv)
-    d = map_swc(d)
-    ing += upsert("swc_findings", d, ["finding_id"], d.columns.tolist())
+        if 'swc_csv' in st.session_state and st.session_state['swc_csv'] is not None:
+            d = read_csv_any(st.session_state['swc_csv'])
+            d = map_swc(d)
+            ing += upsert("swc_findings", d, ["finding_id"], d.columns.tolist())
 
-        if swc_nd is not None:
+        if 'swc_nd' in st.session_state and st.session_state['swc_nd'] is not None:
             rows = []
-            for line in swc_nd:
-                if not line:
-                    continue
+            for line in st.session_state['swc_nd']:
+                if not line: continue
                 try:
                     rows.append(json.loads(line.decode("utf-8")))
                 except Exception:
@@ -776,120 +508,125 @@ elif page == "Security (SWC)":
         if ing:
             st.success(f"{ing} temuan masuk ke swc_findings.")
 
-    # --- Guard tampilkan data ---
     want_load = st.session_state.get("load_existing", False)
-    no_new_upload = (swc_csv is None and swc_nd is None)
+    no_new_upload = (st.session_state.get('swc_csv') is None and st.session_state.get('swc_nd') is None)
     if no_new_upload and not want_load:
-        st.info("Belum ada data temuan SWC untuk sesi ini. Upload CSV/NDJSON atau aktifkan ‘Load existing stored data’.")
+        st.info("Belum ada data temuan SWC. Upload atau aktifkan ‘Load existing stored data’.")
         st.stop()
 
-    # --- Load & tampilkan ---
     con = get_conn()
     df = con.execute("SELECT * FROM swc_findings ORDER BY timestamp DESC").df()
     con.close()
 
     if df.empty:
         st.info("Belum ada data temuan SWC.")
+        st.stop()
+
+    cols = st.columns(3)
+    nets = ["(All)"] + sorted(df["network"].dropna().astype(str).unique().tolist())
+    sevs = ["(All)"] + sorted(df["severity"].dropna().astype(str).unique().tolist())
+    with cols[0]: f_net = st.selectbox("Network", nets, index=0)
+    with cols[1]: f_sev = st.selectbox("Severity", sevs, index=0)
+    with cols[2]: f_swc = st.text_input("Cari SWC-ID (mis. SWC-107)", "")
+
+    if f_net != "(All)": df = df[df["network"] == f_net]
+    if f_sev != "(All)": df = df[df["severity"] == f_sev]
+    if f_swc.strip(): df = df[df["swc_id"].astype(str).str.contains(f_swc.strip(), case=False, na=False)]
+
+    total = len(df); high = (df["severity"].astype(str).str.lower() == "high").sum()
+    c1,c2,c3 = st.columns(3)
+    c1.metric("Total Findings", f"{total:,}")
+    c2.metric("High Severity", f"{high:,}")
+    c3.metric("Unique SWC IDs", f"{df['swc_id'].nunique():,}")
+
+    pivot = df.pivot_table(index="swc_id", columns="severity", values="finding_id", aggfunc="count", fill_value=0)
+    if not pivot.empty:
+        fig = px.imshow(pivot, text_auto=True, aspect="auto", title="SWC-ID × Severity (count)")
+        st.plotly_chart(fig, use_container_width=True)
+
+    st.markdown("### Detail Temuan")
+    detail_cols = ["timestamp","network","contract","file","line_start","swc_id","title","severity","confidence","status","remediation"]
+    st.dataframe(df[detail_cols], use_container_width=True)
+    st.download_button("⬇️ Download hasil filter (CSV)",
+                       data=io.StringIO(df[detail_cols].to_csv(index=False)).getvalue().encode("utf-8"),
+                       file_name="swc_filtered.csv", mime="text/csv", use_container_width=True)
+
+    # SWC Knowledge
+    st.markdown("### 🔎 SWC Knowledge")
+    kb = load_swc_kb()
+    if not kb:
+        st.warning("SWC KB JSON belum ditemukan. Letakkan **swc_kb.json** atau set env `SWC_KB_PATH`.")
     else:
-        cols = st.columns(3)
-        nets = ["(All)"] + sorted(df["network"].dropna().astype(str).unique().tolist())
-        sevs = ["(All)"] + sorted(df["severity"].dropna().astype(str).unique().tolist())
-        with cols[0]: f_net = st.selectbox("Network", nets, index=0)
-        with cols[1]: f_sev = st.selectbox("Severity", sevs, index=0)
-        with cols[2]: f_swc = st.text_input("Cari SWC-ID (mis. SWC-107)", "")
-
-        if f_net != "(All)":
-            df = df[df["network"] == f_net]
-        if f_sev != "(All)":
-            df = df[df["severity"] == f_sev]
-        if f_swc.strip():
-            df = df[df["swc_id"].astype(str).str.contains(f_swc.strip(), case=False, na=False)]
-
-        total = len(df); high = (df["severity"].astype(str).str.lower() == "high").sum()
-        c1,c2,c3 = st.columns(3)
-        c1.metric("Total Findings", f"{total:,}")
-        c2.metric("High Severity", f"{high:,}")
-        c3.metric("Unique SWC IDs", f"{df['swc_id'].nunique():,}")
-
-        pivot = df.pivot_table(index="swc_id", columns="severity", values="finding_id", aggfunc="count", fill_value=0)
-        if not pivot.empty:
-            fig = px.imshow(pivot, text_auto=True, aspect="auto", title="SWC-ID × Severity (count)")
-            st.plotly_chart(fig, use_container_width=True)
-
-        st.markdown("### Detail Temuan")
-        detail_cols = ["timestamp","network","contract","file","line_start","swc_id","title","severity","confidence","status","remediation"]
-        st.dataframe(df[detail_cols], use_container_width=True)
-        st.download_button("⬇️ Download hasil filter (CSV)", data=csv_bytes(df[detail_cols]),
-                           file_name="swc_filtered.csv", mime="text/csv", use_container_width=True)
-
-        # --- SWC Knowledge ---
-        st.markdown("### 🔎 SWC Knowledge")
-        kb = load_swc_kb()
-        if not kb:
-            st.warning("SWC KB JSON belum ditemukan. Letakkan file **swc_kb.json** di direktori app atau set env `SWC_KB_PATH`.")
+        available_ids = sorted(df["swc_id"].dropna().astype(str).unique().tolist())
+        if not available_ids:
+            st.info("Tidak ada SWC-ID pada data saat ini.")
         else:
-            available_ids = sorted(df["swc_id"].dropna().astype(str).unique().tolist())
-            if not available_ids:
-                st.info("Tidak ada SWC-ID pada data saat ini.")
+            sel = st.selectbox("Pilih SWC-ID untuk penjelasan", available_ids, index=0)
+            entry = kb.get(sel)
+            if entry:
+                st.subheader(f"{sel} — {entry.get('title','')}")
+                desc = entry.get("description","").strip()
+                if desc: st.markdown(desc)
+                mit = entry.get("mitigation","").strip()
+                if mit:
+                    st.markdown("**Mitigation:**")
+                    for b in [x.strip() for x in re.split(r"[\n;]", mit) if x.strip()]:
+                        st.markdown(f"- {b}")
             else:
-                sel = st.selectbox("Pilih SWC-ID untuk penjelasan", available_ids, index=0)
-                entry = kb.get(sel)
-                if entry:
-                    st.subheader(f"{sel} — {entry.get('title','')}")
-                    desc = entry.get("description","").strip()
-                    if desc:
-                        st.markdown(desc)
-                    mit = entry.get("mitigation","").strip()
-                    if mit:
-                        st.markdown("**Mitigation:**")
-                        for b in [x.strip() for x in re.split(r"[\n;]", mit) if x.strip()]:
-                            st.markdown(f"- {b}")
-                else:
-                    st.info("SWC ini belum ada di KB JSON.")
+                st.info("SWC ini belum ada di KB JSON.")
 
-# -------------------------------
+# =========================
 # PERFORMANCE (Bench)
-# -------------------------------
+# =========================
 else:
     st.title("🚀 Performance Analytics — STC Bench")
+
+    def csv_bytes(df: pd.DataFrame) -> bytes:
+        buff = io.StringIO(); df.to_csv(buff, index=False); return buff.getvalue().encode("utf-8")
+
     with st.expander("Ingest CSV Bench (runs & tx)", expanded=False):
         col1,col2 = st.columns(2)
         with col1:
             runs = st.file_uploader("bench_runs.csv", type=None, key="runs_csv")
             if runs is not None:
-    d = read_csv_any(runs)
+                d = read_csv_any(runs)
                 cols = ["run_id","timestamp","network","scenario","contract","function_name","concurrency",
                         "tx_per_user","tps_avg","tps_peak","p50_ms","p95_ms","success_rate"]
                 for c in cols:
-                    if c not in d.columns:
-                        d[c] = None
+                    if c not in d.columns: d[c] = None
                 d["timestamp"] = pd.to_datetime(d["timestamp"], errors="coerce").fillna(pd.Timestamp.utcnow())
                 n = upsert("bench_runs", d, ["run_id"], cols)
                 st.success(f"{n} baris masuk ke bench_runs.")
         with col2:
             tx = st.file_uploader("bench_tx.csv", type=None, key="tx_csv")
             if tx is not None:
-    d = read_csv_any(tx)
+                d = read_csv_any(tx)
                 cols = ["run_id","tx_hash","submitted_at","mined_at","latency_ms","status","gas_used","gas_price_wei","block_number","function_name"]
                 for c in cols:
-                    if c not in d.columns:
-                        d[c] = None
+                    if c not in d.columns: d[c] = None
                 d["submitted_at"] = pd.to_datetime(d["submitted_at"], errors="coerce")
                 d["mined_at"] = pd.to_datetime(d["mined_at"], errors="coerce")
                 con = get_conn()
                 con.execute("CREATE TEMP TABLE stg AS SELECT * FROM bench_tx WITH NO DATA;")
                 con.register("df_stage", d[cols])
                 con.execute("INSERT INTO stg SELECT * FROM df_stage;")
-                con.execute("""DELETE FROM bench_tx USING (
-                              SELECT DISTINCT run_id, tx_hash FROM stg
-                            ) d WHERE bench_tx.run_id=d.run_id AND bench_tx.tx_hash=d.tx_hash;""")
+                con.execute("""DELETE FROM bench_tx USING (SELECT DISTINCT run_id, tx_hash FROM stg) d
+                               WHERE bench_tx.run_id=d.run_id AND bench_tx.tx_hash=d.tx_hash;""")
                 con.execute("INSERT INTO bench_tx SELECT * FROM stg;")
                 n = con.execute("SELECT COUNT(*) FROM stg").fetchone()[0]
                 con.close()
                 st.success(f"{n} baris masuk ke bench_tx.")
 
         # Templates
-        _, _, tpl_runs, tpl_tx = sample_templates()
+        tpl_runs = pd.DataFrame([{
+            "run_id":"run-001","timestamp":pd.Timestamp.utcnow().isoformat(),"network":"Sepolia","scenario":"LoadTestSmall",
+            "contract":"SmartReservation","function_name":"checkIn","concurrency":50,"tx_per_user":5,
+            "tps_avg":85.2,"tps_peak":110.4,"p50_ms":220,"p95_ms":540,"success_rate":0.97
+        }])
+        tpl_tx = pd.DataFrame([{
+            "run_id":"run-001","tx_hash":"0x...","submitted_at":pd.Timestamp.utcnow().isoformat(),"mined_at":pd.Timestamp.utcnow().isoformat(),
+            "latency_ms":450,"status":"success","gas_used":21000,"gas_price_wei":"22000000000","block_number":123456,"function_name":"checkIn"
+        }])
         dcol1, dcol2 = st.columns(2)
         with dcol1:
             st.download_button("⬇️ Template bench_runs.csv", data=csv_bytes(tpl_runs),
@@ -899,10 +636,9 @@ else:
                                file_name="bench_tx_template.csv", mime="text/csv", use_container_width=True)
 
     want_load = st.session_state.get("load_existing", False)
-    no_new_upload = (('runs_csv' not in st.session_state or st.session_state['runs_csv'] is None) and
-                     ('tx_csv' not in st.session_state or st.session_state['tx_csv'] is None))
+    no_new_upload = ((st.session_state.get('runs_csv') is None) and (st.session_state.get('tx_csv') is None))
     if no_new_upload and not want_load:
-        st.info("Belum ada data benchmark untuk sesi ini. Upload bench_runs/bench_tx atau aktifkan ‘Load existing stored data’.")
+        st.info("Belum ada data benchmark. Upload atau aktifkan ‘Load existing stored data’.")
         st.stop()
 
     con = get_conn()
@@ -911,39 +647,36 @@ else:
 
     if runs_df.empty:
         st.info("Belum ada data benchmark.")
-    else:
-        cols = st.columns(3)
-        nets = ["(All)"] + sorted(runs_df["network"].dropna().astype(str).unique().tolist())
-        scns = ["(All)"] + sorted(runs_df["scenario"].dropna().astype(str).unique().tolist())
-        with cols[0]: f_net = st.selectbox("Network", nets, index=0)
-        with cols[1]: f_scn = st.selectbox("Scenario", scns, index=0)
-        with cols[2]: f_fn  = st.selectbox("Function", ["(All)"] + sorted(runs_df["function_name"].dropna().astype(str).unique().tolist()), index=0)
+        st.stop()
 
-        df = runs_df.copy()
-        if f_net != "(All)":
-            df = df[df["network"] == f_net]
-        if f_scn != "(All)":
-            df = df[df["scenario"] == f_scn]
-        if f_fn  != "(All)":
-            df = df[df["function_name"] == f_fn]
+    cols = st.columns(3)
+    nets = ["(All)"] + sorted(runs_df["network"].dropna().astype(str).unique().tolist())
+    scns = ["(All)"] + sorted(runs_df["scenario"].dropna().astype(str).unique().tolist())
+    with cols[0]: f_net = st.selectbox("Network", nets, index=0)
+    with cols[1]: f_scn = st.selectbox("Scenario", scns, index=0)
+    with cols[2]: f_fn  = st.selectbox("Function", ["(All)"] + sorted(runs_df["function_name"].dropna().astype(str).unique().tolist()), index=0)
 
-        k1,k2,k3 = st.columns(3)
-        k1.metric("TPS Peak", f"{df['tps_peak'].max():,.2f}" if not df.empty else "0")
-        k2.metric("Latency p95 (ms)", f"{df['p95_ms'].mean():,.0f}" if not df.empty else "0")
-        k3.metric("Success Rate", f"{(df['success_rate'].mean()*100):.1f}%" if not df.empty else "0%")
+    df = runs_df.copy()
+    if f_net != "(All)": df = df[df["network"] == f_net]
+    if f_scn != "(All)": df = df[df["scenario"] == f_scn]
+    if f_fn  != "(All)": df = df[df["function_name"] == f_fn]
 
-        c1,c2 = st.columns(2)
-        with c1:
-            fig = px.line(df.sort_values('concurrency'), x='concurrency', y='tps_avg', color='scenario', markers=True, title="TPS vs Concurrency")
-            st.plotly_chart(fig, use_container_width=True)
-        with c2:
-            lat = df.melt(id_vars=['concurrency','scenario'], value_vars=['p50_ms','p95_ms'], var_name='metric', value_name='latency_ms')
-            fig = px.line(lat.sort_values('concurrency'), x='concurrency', y='latency_ms', color='metric', markers=True, title="Latency (p50/p95) vs Concurrency")
-            st.plotly_chart(fig, use_container_width=True)
+    k1,k2,k3 = st.columns(3)
+    k1.metric("TPS Peak", f"{df['tps_peak'].max():,.2f}" if not df.empty else "0")
+    k2.metric("Latency p95 (ms)", f"{df['p95_ms'].mean():,.0f}" if not df.empty else "0")
+    k3.metric("Success Rate", f"{(df['success_rate'].mean()*100):.1f}%" if not df.empty else "0%")
 
-        st.markdown("### Detail Runs")
-        st.dataframe(df, use_container_width=True)
-        st.download_button("⬇️ Download hasil filter (CSV)", data=csv_bytes(df),
-                           file_name="bench_runs_filtered.csv", mime="text/csv", use_container_width=True)
+    c1,c2 = st.columns(2)
+    with c1:
+        fig = px.line(df.sort_values('concurrency'), x='concurrency', y='tps_avg', color='scenario', markers=True, title="TPS vs Concurrency")
+        st.plotly_chart(fig, use_container_width=True)
+    with c2:
+        lat = df.melt(id_vars=['concurrency','scenario'], value_vars=['p50_ms','p95_ms'], var_name='metric', value_name='latency_ms')
+        fig = px.line(lat.sort_values('concurrency'), x='concurrency', y='latency_ms', color='metric', markers=True, title="Latency (p50/p95) vs Concurrency")
+        st.plotly_chart(fig, use_container_width=True)
 
-        show_help("bench")
+    st.markdown("### Detail Runs")
+    st.dataframe(df, use_container_width=True)
+    st.download_button("⬇️ Download hasil filter (CSV)",
+                       data=io.StringIO(df.to_csv(index=False)).getvalue().encode("utf-8"),
+                       file_name="bench_runs_filtered.csv", mime="text/csv", use_container_width=True)
