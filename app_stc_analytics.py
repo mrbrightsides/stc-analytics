@@ -46,18 +46,6 @@ elif tool_choice == "Test":
 else:
     contract_tool()
 
-# ===== Render Module Area =====
-if module_choice == "Tourism":
-    # Tourism tetap pakai sidebar lama karena sidebar dibuat di dalam fungsi2 ini
-    t1, t2, t3 = st.tabs(["Cost (Vision)", "Security (SWC)", "Performance (Bench)"])
-    with t1: render_cost_page()
-    with t2: render_swc_page()
-    with t3: render_bench_page()
-else:
-    # Placeholder besar: COMING SOON
-    st.markdown(f"## Module: {module_choice}")
-    st.markdown("<h1 style='text-align:center;color:gray;'>COMING SOON</h1>", unsafe_allow_html=True)
-
 st.divider()
 TOOLS = ["Scan", "Test", "Contract"]
 tool_choice = st.radio("Tools", TOOLS, horizontal=True, key="tool_choice")
