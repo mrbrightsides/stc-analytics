@@ -485,40 +485,48 @@ if page == "Cost (Vision)":
             df["cost_idr"]     = pd.to_numeric(df["cost_idr"], errors="coerce")
             return df[cols]
 
-        if nd is not None:
-            rows = []
-            for line in nd:
-                try:
-                    rows.append(json.loads(line.decode("utf-8")))
-                except Exception:
-                    pass
-            if rows:
-                d = pd.DataFrame(rows)
-                if "id" not in d.columns:
-                    d["id"] = d.apply(lambda r: f"{r.get('tx_hash','')}::{(r.get('function_name') or '')}".strip(), axis=1)
-                if "meta_json" not in d.columns:
-                    if "meta" in d.columns:
-                        d["meta_json"] = d["meta"].apply(lambda x: json.dumps(x) if isinstance(x, dict) else (x if x else "{}"))
-                    else:
-                        d["meta_json"] = "{}"
-                cols = [
-                    "id","project","network","timestamp","tx_hash","contract","function_name",
-                    "block_number","gas_used","gas_price_wei","cost_eth","cost_idr","meta_json"
-                ]
-                for c in cols:
-                    if c not in d.columns: d[c] = None
-                d["timestamp"] = pd.to_datetime(d["timestamp"], errors="coerce").fillna(pd.Timestamp.utcnow())
-                for numc in ["block_number","gas_used","gas_price_wei","cost_eth","cost_idr"]:
-                    d[numc] = pd.to_numeric(d[numc], errors="coerce")
-                ing += upsert("vision_costs", d, ["id"], cols)
+        # ... di dalam expander (setelah dua blok ingest)
+if nd is not None:
+    rows = []
+    for line in nd:
+        try:
+            rows.append(json.loads(line.decode("utf-8")))
+        except Exception:
+            pass
+    if rows:
+        d = pd.DataFrame(rows)
+        if "id" not in d.columns:
+            d["id"] = d.apply(lambda r: f"{r.get('tx_hash','')}::{(r.get('function_name') or '')}".strip(), axis=1)
+        if "meta_json" not in d.columns:
+            if "meta" in d.columns:
+                d["meta_json"] = d["meta"].apply(lambda x: json.dumps(x) if isinstance(x, dict) else (x if x else "{}"))
+            else:
+                d["meta_json"] = "{}"
 
-        if cs is not None:
-            raw = read_csv_any(cs)
-            d = map_csv_cost(raw)
-            ing += upsert("vision_costs", d, ["id"], d.columns.tolist())
+        cols = [
+            "id","project","network","timestamp","tx_hash","contract","function_name",
+            "block_number","gas_used","gas_price_wei","cost_eth","cost_idr","meta_json"
+        ]
+        for c in cols:
+            if c not in d.columns:
+                d[c] = None
 
-            if ing:
-                st.success(f"{ing} baris masuk ke vision_costs.")
+        # set project & types
+        d["project"] = d.get("project").fillna("STC")
+        d["timestamp"] = pd.to_datetime(d["timestamp"], errors="coerce").fillna(pd.Timestamp.utcnow())
+        for numc in ["block_number","gas_used","gas_price_wei","cost_eth","cost_idr"]:
+            d[numc] = pd.to_numeric(d[numc], errors="coerce")
+
+        ing += upsert("vision_costs", d, ["id"], cols)
+
+if cs is not None:
+    raw = read_csv_any(cs)
+    d = map_csv_cost(raw)
+    ing += upsert("vision_costs", d, ["id"], d.columns.tolist())
+
+# 👉 tampilkan pesan sukses untuk kedua jalur
+if ing:
+    st.success(f"{ing} baris masuk ke vision_costs.")
 
     # ← Di sini kita sudah keluar dari expander, tapi masih di dalam blok `if page == ...`
     want_load = st.session_state.get("load_existing", False)
@@ -533,6 +541,25 @@ if page == "Cost (Vision)":
     con = get_conn()
     df = con.execute("SELECT * FROM vision_costs ORDER BY timestamp DESC").df()
     con.close()
+
+    if df.empty:
+        st.info("Belum ada data cost.")
+    else:
+        # ringkasan kecil (opsional)
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Total Rows", f"{len(df):,}")
+        c2.metric("Unique Tx", f"{df['tx_hash'].nunique():,}" if 'tx_hash' in df else "—")
+        c3.metric("Total IDR", f"{int(pd.to_numeric(df.get('cost_idr', 0), errors='coerce').fillna(0).sum()):,}")
+
+        st.markdown("### Detail Vision Costs")
+        st.dataframe(df, use_container_width=True)
+        st.download_button(
+            "⬇️ Download CSV (All)",
+            data=csv_bytes(df),
+            file_name="vision_costs_all.csv",
+            mime="text/csv",
+            use_container_width=True
+        )
 
 # -------------------------------
 # SECURITY (SWC)
