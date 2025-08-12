@@ -398,7 +398,7 @@ page = st.sidebar.radio("Pilih tab", ["Cost (Vision)","Security (SWC)","Performa
 if page == "Cost (Vision)":
     st.title("💰 Cost Analytics — STC Vision")
 
-    # --- define helper FIRST (di dalam halaman, tapi di luar expander) ---
+    # --- helper: mapping CSV Vision -> schema standar ---
     def map_csv_cost(df_raw: pd.DataFrame) -> pd.DataFrame:
         m = {
             "Network":"network","Tx Hash":"tx_hash","From":"from_address","To":"to_address",
@@ -428,28 +428,66 @@ if page == "Cost (Vision)":
         cols = ["id","project","network","timestamp","tx_hash","contract","function_name",
                 "block_number","gas_used","gas_price_wei","cost_eth","cost_idr","meta_json"]
         for c in cols:
-            if c not in df.columns: df[c] = None
+            if c not in df.columns:
+                df[c] = None
         df["block_number"] = pd.to_numeric(df["block_number"], errors="coerce").astype("Int64")
         df["gas_used"]     = pd.to_numeric(df["gas_used"], errors="coerce").astype("Int64")
         df["cost_eth"]     = pd.to_numeric(df["cost_eth"], errors="coerce")
         df["cost_idr"]     = pd.to_numeric(df["cost_idr"], errors="coerce")
         return df[cols]
 
-    nd, cs = None, None
     ing = 0
 
     with st.expander("Ingest data (NDJSON/CSV) → DuckDB", expanded=False):
-        # … uploader, info, templates …
+        left, right = st.columns(2)
+        with left:
+            nd = st.file_uploader(
+                "Upload NDJSON (vision_costs.ndjson / jsonl)",
+                type=["ndjson", "jsonl"], key="nd_cost"
+            )
+        with right:
+            cs = st.file_uploader("Upload CSV (dari STC-Vision)", type=None, key="csv_cost")
 
-        # NDJSON ingest (tetap di dalam expander)
+        # === NDJSON ingest ===
         if nd is not None:
-            # … proses NDJSON …
-            ing += upsert("vision_costs", d, ["id"], cols)
+            rows = []
+            for line in nd:
+                if not line:
+                    continue
+                try:
+                    rows.append(json.loads(line.decode("utf-8")))
+                except Exception:
+                    pass
 
-        # CSV ingest (fungsi SUDAH didefinisikan di atas)
+            if rows:
+                d = pd.DataFrame(rows)
+
+                if "id" not in d.columns:
+                    d["id"] = d.apply(lambda r: f"{r.get('tx_hash','')}::{(r.get('function_name') or '')}".strip(), axis=1)
+
+                if "meta_json" not in d.columns:
+                    if "meta" in d.columns:
+                        d["meta_json"] = d["meta"].apply(lambda x: json.dumps(x) if isinstance(x, dict) else (x if x else "{}"))
+                    else:
+                        d["meta_json"] = "{}"
+
+                cols = ["id","project","network","timestamp","tx_hash","contract","function_name",
+                        "block_number","gas_used","gas_price_wei","cost_eth","cost_idr","meta_json"]
+                for c in cols:
+                    if c not in d.columns:
+                        d[c] = None
+
+                d["project"]   = d.get("project").fillna("STC")
+                d["timestamp"] = pd.to_datetime(d["timestamp"], errors="coerce").fillna(pd.Timestamp.utcnow())
+                for numc in ["block_number","gas_used","gas_price_wei","cost_eth","cost_idr"]:
+                    d[numc] = pd.to_numeric(d[numc], errors="coerce")
+
+                ing += upsert("vision_costs", d, ["id"], cols)
+
+        # === CSV ingest ===
         if cs is not None:
             raw = read_csv_any(cs)
-            if not raw.empty:               # guard biar gak error di DataFrame kosong
+            if not raw.empty:
                 d = map_csv_cost(raw)
                 ing += upsert("vision_costs", d, ["id"], d.columns.tolist())
             else:
@@ -458,12 +496,9 @@ if page == "Cost (Vision)":
         if ing:
             st.success(f"{ing} baris masuk ke vision_costs.")
 
-    # ===== DI LUAR EXPANDER (INDENT 4 SPASI) =====
+    # ==== Load & tampilkan data (di luar expander) ====
     want_load = st.session_state.get("load_existing", False)
-    no_new_upload = (
-        (st.session_state.get('nd_cost') is None) and
-        (st.session_state.get('csv_cost') is None)
-    )
+    no_new_upload = (st.session_state.get("nd_cost") is None and st.session_state.get("csv_cost") is None)
     if no_new_upload and not want_load:
         st.info("Belum ada data cost untuk sesi ini. Upload NDJSON/CSV atau aktifkan ‘Load existing stored data’ di sidebar.")
         st.stop()
@@ -479,11 +514,16 @@ if page == "Cost (Vision)":
         c1.metric("Total Rows", f"{len(df):,}")
         c2.metric("Unique Tx", f"{df['tx_hash'].nunique():,}" if 'tx_hash' in df else "—")
         c3.metric("Total IDR", f"{int(pd.to_numeric(df.get('cost_idr', 0), errors='coerce').fillna(0).sum()):,}")
+
         st.markdown("### Detail Vision Costs")
         st.dataframe(df, use_container_width=True)
-        st.download_button("⬇️ Download CSV (All)", data=csv_bytes(df),
-                           file_name="vision_costs_all.csv", mime="text/csv",
-                           use_container_width=True)
+        st.download_button(
+            "⬇️ Download CSV (All)",
+            data=csv_bytes(df),
+            file_name="vision_costs_all.csv",
+            mime="text/csv",
+            use_container_width=True
+        )
 
 # -------------------------------
 # SECURITY (SWC)
