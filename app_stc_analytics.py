@@ -4,11 +4,9 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 from datetime import datetime
-
-# ==== Templates loader (auto refresh by file mtime) ====
 from pathlib import Path
-import pandas as pd
-import streamlit as st
+
+st.cache_data.clear()
 
 TEMPLATES_DIR = Path("./templates").resolve()
 
