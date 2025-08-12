@@ -1122,7 +1122,7 @@ def render_bench_page():
     # -------------------------------
     # PERFORMANCE (Bench)
     # -------------------------------
-    elif page == "Performance (Bench)":
+    if page == "Performance (Bench)":
         st.title("🚀 Performance Analytics — STC Bench")
 
         with st.expander("Ingest CSV Bench (runs & tx)", expanded=False):
