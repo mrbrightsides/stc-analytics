@@ -555,35 +555,50 @@ if page == "Cost (Vision)":
             use_container_width=True
         )
 
-        # ===== Grafik =====
-        df["_cost_idr"]  = pd.to_numeric(df.get("cost_idr", 0), errors="coerce").fillna(0)
-        df["_gas_used"]  = pd.to_numeric(df.get("gas_used", 0), errors="coerce").fillna(0)
-        df["_gas_price"] = pd.to_numeric(df.get("gas_price_wei", 0), errors="coerce").fillna(0)
-        df["_timestamp"] = pd.to_datetime(df.get("timestamp"), errors="coerce")
+        # ===== Grafik (versi polished) =====
+df_plot = df.copy()
+df_plot["cost_idr_num"] = pd.to_numeric(df_plot.get("cost_idr", 0), errors="coerce").fillna(0)
+df_plot["gas_used_num"] = pd.to_numeric(df_plot.get("gas_used", 0), errors="coerce").fillna(0)
+df_plot["gas_price_num"] = pd.to_numeric(df_plot.get("gas_price_wei", 0), errors="coerce").fillna(0)
+df_plot["ts"] = pd.to_datetime(df_plot.get("timestamp"), errors="coerce")
+df_plot["fn"] = df_plot["function_name"].fillna("(unknown)")
 
-        g1, g2 = st.columns(2)
+g1, g2 = st.columns(2)
 
-        with g1:
-            ts = df.dropna(subset=["_timestamp"]).sort_values("_timestamp")
-            if not ts.empty:
-                fig = px.line(ts, x="_timestamp", y="_cost_idr", color="network",
-                              markers=True, title="Biaya per Transaksi (Rp) vs Waktu")
-                st.plotly_chart(fig, use_container_width=True)
+# 1) Line: biaya vs waktu (pakai label yang enak dibaca)
+with g1:
+    ts = df_plot.dropna(subset=["ts"]).sort_values("ts")
+    if not ts.empty:
+        fig = px.line(
+            ts, x="ts", y="cost_idr_num", color="network", markers=True,
+            title="Biaya per Transaksi (Rp) vs Waktu",
+            labels={"ts":"Waktu", "cost_idr_num":"Biaya (Rp)", "network":"Jaringan"}
+        )
+        st.plotly_chart(fig, use_container_width=True)
 
-        with g2:
-            by_fn = df.groupby(df["function_name"].fillna("(unknown)"))["_cost_idr"].sum().reset_index()
-            if not by_fn.empty:
-                fig = px.bar(by_fn, x="function_name", y="_cost_idr", title="Total Biaya per Function (Rp)")
-                st.plotly_chart(fig, use_container_width=True)
+# 2) Bar: total biaya per function (urutan descending & limit 15)
+with g2:
+    by_fn = (df_plot.groupby("fn", as_index=False)["cost_idr_num"].sum()
+                    .sort_values("cost_idr_num", ascending=False).head(15))
+    if not by_fn.empty:
+        fig = px.bar(
+            by_fn, x="fn", y="cost_idr_num",
+            title="Total Biaya per Function (Rp) — Top 15",
+            labels={"fn":"Function", "cost_idr_num":"Total Biaya (Rp)"}
+        )
+        fig.update_xaxes(categoryorder="total descending")
+        st.plotly_chart(fig, use_container_width=True)
 
-        sc = df[(df["_gas_used"] > 0) & (df["_gas_price"] > 0)]
-        if not sc.empty:
-            fig = px.scatter(
-                sc, x="_gas_used", y="_gas_price", size="_cost_idr", color="network",
-                hover_data=["tx_hash","function_name","contract"],
-                title="Gas Used vs Gas Price (size=Rp)"
-            )
-            st.plotly_chart(fig, use_container_width=True)
+# 3) Scatter: gas vs gas price (size=Rp) + label enak
+sc = df_plot[(df_plot["gas_used_num"] > 0) & (df_plot["gas_price_num"] > 0)]
+if not sc.empty:
+    fig = px.scatter(
+        sc, x="gas_used_num", y="gas_price_num", size="cost_idr_num", color="network",
+        hover_data=["tx_hash","fn","contract"],
+        title="Gas Used vs Gas Price (size = Biaya Rp)",
+        labels={"gas_used_num":"Gas Used", "gas_price_num":"Gas Price (wei)", "network":"Jaringan"}
+    )
+    st.plotly_chart(fig, use_container_width=True)
 
 # -------------------------------
 # SECURITY (SWC)
