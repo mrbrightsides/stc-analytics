@@ -555,6 +555,33 @@ if page == "Cost (Vision)":
             use_container_width=True
         )
 
+# --- Filters (di atas grafik) ---
+fc1, fc2, fc3, fc4 = st.columns(4)
+with fc1:
+    dmin = pd.to_datetime(df["timestamp"], errors="coerce").min()
+    dmax = pd.to_datetime(df["timestamp"], errors="coerce").max()
+    date_range = st.date_input("Tanggal", value=(dmin.date() if pd.notna(dmin) else None,
+                                                 dmax.date() if pd.notna(dmax) else None))
+with fc2:
+    f_net = st.selectbox("Network", ["(All)"] + sorted(df["network"].dropna().astype(str).unique().tolist()), index=0)
+with fc3:
+    f_fn = st.selectbox("Function", ["(All)"] + sorted(df["function_name"].dropna().astype(str).unique().tolist()), index=0)
+with fc4:
+    hide_unknown = st.checkbox("Sembunyikan (unknown)", value=False)
+
+df_plot = df.copy()
+df_plot["ts"] = pd.to_datetime(df_plot["timestamp"], errors="coerce")
+if isinstance(date_range, (list, tuple)) and len(date_range) == 2:
+    start, end = date_range
+    if start and end:
+        df_plot = df_plot[(df_plot["ts"] >= pd.Timestamp(start)) & (df_plot["ts"] <= pd.Timestamp(end) + pd.Timedelta(days=1))]
+if f_net != "(All)":
+    df_plot = df_plot[df_plot["network"] == f_net]
+if f_fn != "(All)":
+    df_plot = df_plot[df_plot["function_name"] == f_fn]
+if hide_unknown:
+    df_plot = df_plot[df_plot["function_name"].notna()]
+
         # ===== Grafik (versi polished) =====
 df_plot = df.copy()
 df_plot["cost_idr_num"] = pd.to_numeric(df_plot.get("cost_idr", 0), errors="coerce").fillna(0)
