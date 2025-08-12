@@ -558,7 +558,7 @@ if page == "Cost (Vision)":
 # ====== Filters & plotting (polished++) ======
 df_base = df.copy()
 df_base["ts"] = pd.to_datetime(df_base["timestamp"], errors="coerce")
-df_base["fn"] = df_base["function_name"].fillna("(unknown)")
+df_base["fn"] = df_base["function_name"].fillna("(⚠ Unparsed Function)")
 df_base["cost_idr_num"]  = pd.to_numeric(df_base.get("cost_idr", 0), errors="coerce").fillna(0)
 df_base["gas_used_num"]  = pd.to_numeric(df_base.get("gas_used", 0), errors="coerce").fillna(0)
 df_base["gas_price_num"] = pd.to_numeric(df_base.get("gas_price_wei", 0), errors="coerce").fillna(0)
@@ -580,7 +580,7 @@ with fc3:
 
 hide_unknown_default = (f_fn != "(All)")
 with fc4:
-    hide_unknown = st.checkbox("Sembunyikan (unknown)", value=hide_unknown_default)
+    hide_unknown = st.checkbox("Sembunyikan (⚠ Unparsed Function)", value=hide_unknown_default)
 with fc5:
     do_smooth = st.checkbox("Smoothing (7-pt)", value=False)
 with fc6:
