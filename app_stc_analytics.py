@@ -398,10 +398,23 @@ page = st.sidebar.radio("Pilih tab", ["Cost (Vision)","Security (SWC)","Performa
 if page == "Cost (Vision)":
     st.title("💰 Cost Analytics — STC Vision")
 
-    with st.expander("Ingest data (NDJSON/CSV) → DuckDB", expanded=False):
-        # uploader, info, download template ...
-        # (kode map_csv_cost kamu di sini)
+    # guard (opsional, biar gak NameError kalau salah indent lagi)
+    nd, cs = None, None
+    ing = 0
 
+    with st.expander("Ingest data (NDJSON/CSV) → DuckDB", expanded=False):
+        left, right = st.columns(2)
+        with left:
+            nd = st.file_uploader(
+                "Upload NDJSON (vision_costs.ndjson / jsonl)",
+                type=["ndjson","jsonl"], key="nd_cost"
+            )
+        with right:
+            cs = st.file_uploader("Upload CSV (dari STC-Vision)", type=None, key="csv_cost")
+
+        # ... info, link, template, def map_csv_cost(...)
+
+        # ✅ INGEST NDJSON (INDENT 8 SPASI)
         if nd is not None:
             rows = []
             for line in nd:
@@ -418,28 +431,32 @@ if page == "Cost (Vision)":
                         d["meta_json"] = d["meta"].apply(lambda x: json.dumps(x) if isinstance(x, dict) else (x if x else "{}"))
                     else:
                         d["meta_json"] = "{}"
+
                 cols = [
                     "id","project","network","timestamp","tx_hash","contract","function_name",
                     "block_number","gas_used","gas_price_wei","cost_eth","cost_idr","meta_json"
                 ]
                 for c in cols:
-                    if c not in d.columns:
-                        d[c] = None
+                    if c not in d.columns: d[c] = None
+
                 d["project"] = d.get("project").fillna("STC")
                 d["timestamp"] = pd.to_datetime(d["timestamp"], errors="coerce").fillna(pd.Timestamp.utcnow())
                 for numc in ["block_number","gas_used","gas_price_wei","cost_eth","cost_idr"]:
                     d[numc] = pd.to_numeric(d[numc], errors="coerce")
+
                 ing += upsert("vision_costs", d, ["id"], cols)
 
+        # ✅ INGEST CSV (INDENT 8 SPASI)
         if cs is not None:
             raw = read_csv_any(cs)
             d = map_csv_cost(raw)
             ing += upsert("vision_costs", d, ["id"], d.columns.tolist())
 
+        # ✅ Pesan sukses untuk dua jalur (INDENT 8 SPASI)
         if ing:
             st.success(f"{ing} baris masuk ke vision_costs.")
 
-    # ← keluar dari expander, tapi masih di dalam if page == ...
+    # ===== DI LUAR EXPANDER (INDENT 4 SPASI) =====
     want_load = st.session_state.get("load_existing", False)
     no_new_upload = (
         (st.session_state.get('nd_cost') is None) and
@@ -460,16 +477,11 @@ if page == "Cost (Vision)":
         c1.metric("Total Rows", f"{len(df):,}")
         c2.metric("Unique Tx", f"{df['tx_hash'].nunique():,}" if 'tx_hash' in df else "—")
         c3.metric("Total IDR", f"{int(pd.to_numeric(df.get('cost_idr', 0), errors='coerce').fillna(0).sum()):,}")
-
         st.markdown("### Detail Vision Costs")
         st.dataframe(df, use_container_width=True)
-        st.download_button(
-            "⬇️ Download CSV (All)",
-            data=csv_bytes(df),
-            file_name="vision_costs_all.csv",
-            mime="text/csv",
-            use_container_width=True
-        )
+        st.download_button("⬇️ Download CSV (All)", data=csv_bytes(df),
+                           file_name="vision_costs_all.csv", mime="text/csv",
+                           use_container_width=True)
 
 # -------------------------------
 # SECURITY (SWC)
