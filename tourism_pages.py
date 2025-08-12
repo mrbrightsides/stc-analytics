@@ -20,3 +20,19 @@ def render_tourism_sidebar():
         if st.button("🧨 Reset schema (DROP & CREATE)", use_container_width=True):
             drop_all(); ensure_db()
             st.success("Schema di-reset. Tabel dibuat ulang dengan struktur terbaru.")
+
+def render_cost_page():
+    import streamlit as st
+    st.title("💰 Cost Analytics — STC Vision")
+    st.info("Halaman Cost (Vision). Tempelkan konten lengkapmu di sini.")
+
+def render_swc_page():
+    import streamlit as st
+    st.title("🛡️ Security Analytics — STC for SWC")
+    st.info("Halaman SWC. Tempelkan konten lengkapmu di sini.")
+
+def render_bench_page():
+    import streamlit as st
+    st.title("🚀 Performance Analytics — STC Bench")
+    st.info("Halaman Bench. Tempelkan konten lengkapmu di sini.")
+
