@@ -441,6 +441,9 @@ with st.sidebar.expander("⚙️ Data control", expanded=True):
         drop_all()
         ensure_db()
         st.success("Schema di-reset. Tabel dibuat ulang dengan struktur terbaru.")
+    if st.sidebar.button("🔄 Reload templates (clear cache)"):
+    st.cache_data.clear()
+    st.experimental_rerun()
 
 page = st.sidebar.radio("Pilih tab", ["Cost (Vision)","Security (SWC)","Performance (Bench)"], index=0)
 
