@@ -10,7 +10,7 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-TEMPLATES_DIR = (Path(__file__).parent / "templates").resolve()
+TEMPLATES_DIR = Path("./templates").resolve()
 
 @st.cache_data(show_spinner=False)
 def _load_csv_cached(path_str: str, mtime: float) -> pd.DataFrame:
