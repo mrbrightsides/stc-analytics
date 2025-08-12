@@ -5,6 +5,51 @@ import plotly.express as px
 import streamlit as st
 from datetime import datetime
 
+# ==== Templates loader (auto refresh by file mtime) ====
+from pathlib import Path
+import pandas as pd
+import streamlit as st
+
+TEMPLATES_DIR = (Path(__file__).parent / "templates").resolve()
+
+@st.cache_data(show_spinner=False)
+def _load_csv_cached(path_str: str, mtime: float) -> pd.DataFrame:
+    # cache key = (path, mtime). Kalau file ganti, mtime berubah -> cache refresh
+    return pd.read_csv(path_str)
+
+def _load_csv(path: Path, fallback_cols: list[str]) -> pd.DataFrame:
+    try:
+        if path.exists():
+            return _load_csv_cached(str(path), path.stat().st_mtime)
+        else:
+            st.warning(f"Template tidak ditemukan: {path.name} — pakai fallback kosong.")
+    except Exception as e:
+        st.error(f"Gagal baca {path.name}: {e}")
+    return pd.DataFrame(columns=fallback_cols).head(0)
+
+def sample_templates():
+    tpl_cost = _load_csv(
+        TEMPLATES_DIR / "vision_template.csv",
+        ["Network","Tx Hash","From","To","Block","Gas Used","Gas Price (Gwei)",
+         "Estimated Fee (ETH)","Estimated Fee (Rp)","Contract","Function","Timestamp","Status"]
+    )
+    tpl_swc = _load_csv(
+        TEMPLATES_DIR / "swc_findings_template.csv",
+        ["finding_id","timestamp","network","contract","file","line_start","line_end",
+         "swc_id","title","severity","confidence","status","remediation","commit_hash"]
+    )
+    tpl_runs = _load_csv(
+        TEMPLATES_DIR / "bench_runs_template.csv",
+        ["run_id","timestamp","network","scenario","contract","function_name",
+         "concurrency","tx_per_user","tps_avg","tps_peak","p50_ms","p95_ms","success_rate"]
+    )
+    tpl_tx = _load_csv(
+        TEMPLATES_DIR / "bench_tx_template.csv",
+        ["run_id","tx_hash","submitted_at","mined_at","latency_ms","status",
+         "gas_used","gas_price_wei","block_number","function_name"]
+    )
+    return tpl_cost, tpl_swc, tpl_runs, tpl_tx
+
 # --- NDJSON reader helper ---
 def read_ndjson(uploaded):
     """Baca NDJSON dari st.file_uploader atau file-like object."""
