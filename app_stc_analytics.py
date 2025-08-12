@@ -397,7 +397,7 @@ page = st.sidebar.radio("Pilih tab", ["Cost (Vision)","Security (SWC)","Performa
 # -------------------------------
 if page == "Cost (Vision)":
     st.title("💰 Cost Analytics — STC Vision")
-
+    
     # --- helper: mapping CSV Vision -> schema standar ---
     def map_csv_cost(df_raw: pd.DataFrame) -> pd.DataFrame:
         m = {
@@ -407,7 +407,7 @@ if page == "Cost (Vision)":
             "Contract":"contract","Function":"function_name","Timestamp":"timestamp","Status":"status"
         }
         df = df_raw.rename(columns=m).copy()
-
+    
         df["project"] = "STC"
         if "timestamp" in df.columns:
             df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce").fillna(pd.Timestamp.utcnow())
@@ -770,7 +770,7 @@ if not unparsed.empty:
 # -------------------------------
 elif page == "Security (SWC)":
     st.title("🛡️ Security Analytics — STC for SWC")
-
+    
     # --- mapping CSV/NDJSON -> schema + id fallback + dedup ---
     def map_swc(df: pd.DataFrame) -> pd.DataFrame:
         cols = ["finding_id","timestamp","network","contract","file","line_start","line_end",
@@ -778,7 +778,7 @@ elif page == "Security (SWC)":
         for c in cols:
             if c not in df.columns:
                 df[c] = None
-
+    
         # fallback id: contract::swc_id::line_start
         fallback = df.apply(
             lambda r: f"{r.get('contract','')}::{r.get('swc_id','')}::{r.get('line_start','')}",
@@ -1070,7 +1070,7 @@ else:
 
     if runs_df.empty:
     st.info("Belum ada data benchmark.")
-else:
+    else:
     # ===== base + helper cols =====
     base = runs_df.copy()
     base["ts"]   = pd.to_datetime(base["timestamp"], errors="coerce")
