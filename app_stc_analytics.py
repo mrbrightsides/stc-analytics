@@ -555,7 +555,7 @@ if page == "Cost (Vision)":
             use_container_width=True
         )
 
-# ====== Filters & plotting (polished) ======
+# ====== Filters & plotting (polished++) ======
 df_base = df.copy()
 df_base["ts"] = pd.to_datetime(df_base["timestamp"], errors="coerce")
 df_base["fn"] = df_base["function_name"].fillna("(unknown)")
@@ -564,7 +564,7 @@ df_base["gas_used_num"]  = pd.to_numeric(df_base.get("gas_used", 0), errors="coe
 df_base["gas_price_num"] = pd.to_numeric(df_base.get("gas_price_wei", 0), errors="coerce").fillna(0)
 
 # --- UI Filters ---
-fc1, fc2, fc3, fc4, fc5 = st.columns([1.4,1,1,1,1])
+fc1, fc2, fc3, fc4, fc5, fc6, fc7 = st.columns([1.4,1,1,1,1,1,1])
 with fc1:
     dmin = df_base["ts"].min()
     dmax = df_base["ts"].max()
@@ -577,13 +577,16 @@ with fc2:
     f_net = st.selectbox("Network", ["(All)"] + sorted(df_base["network"].dropna().astype(str).unique().tolist()), index=0)
 with fc3:
     f_fn  = st.selectbox("Function", ["(All)"] + sorted(df_base["fn"].dropna().astype(str).unique().tolist()), index=0)
-# auto-hide unknown jika function dipilih
+
 hide_unknown_default = (f_fn != "(All)")
 with fc4:
     hide_unknown = st.checkbox("Sembunyikan (unknown)", value=hide_unknown_default)
 with fc5:
-    # opsi smoothing
     do_smooth = st.checkbox("Smoothing (7-pt)", value=False)
+with fc6:
+    line_log = st.checkbox("Line: log scale (Y)", value=False)
+with fc7:
+    scatter_scale = st.selectbox("Scatter scale", ["linear","log x","log y","log x & y"], index=0)
 
 # --- Apply filters ---
 df_plot = df_base.copy()
@@ -593,7 +596,6 @@ if isinstance(date_range, (list, tuple)) and len(date_range) == 2:
         df_plot = df_plot[df_plot["ts"] >= pd.Timestamp(start)]
     if end:
         df_plot = df_plot[df_plot["ts"] < (pd.Timestamp(end) + pd.Timedelta(days=1))]
-
 if f_net != "(All)":
     df_plot = df_plot[df_plot["network"] == f_net]
 if f_fn != "(All)":
@@ -601,7 +603,7 @@ if f_fn != "(All)":
 if hide_unknown or (f_fn != "(All)"):
     df_plot = df_plot[df_plot["fn"] != "(unknown)"]
 
-# --- Badge jumlah data + quick stats ---
+# --- Badge jumlah data ---
 st.caption(f"Menampilkan **{len(df_plot):,}** transaksi"
            + (f" | Network: **{f_net}**" if f_net != "(All)" else "")
            + (f" | Function: **{f_fn}**" if f_fn != "(All)" else ""))
@@ -609,7 +611,7 @@ st.caption(f"Menampilkan **{len(df_plot):,}** transaksi"
 # ===== Charts =====
 g1, g2 = st.columns(2)
 
-# 1) Line: biaya vs waktu (opsional smoothing rolling 7)
+# 1) Line: biaya vs waktu (opsional smoothing + log Y)
 with g1:
     ts = df_plot.dropna(subset=["ts"]).sort_values("ts")
     if not ts.empty:
@@ -622,9 +624,11 @@ with g1:
             title="Biaya per Transaksi (Rp) vs Waktu",
             labels={"ts":"Waktu", y:"Biaya (Rp)", "network":"Jaringan"}
         )
+        if line_log:
+            fig.update_yaxes(type="log")
         st.plotly_chart(fig, use_container_width=True)
 
-# 2) Bar: total biaya per function (warna per function, top 15)
+# 2) Bar: total biaya per function (warna per function)
 with g2:
     by_fn = (df_plot.groupby("fn", as_index=False)["cost_idr_num"].sum()
                      .sort_values("cost_idr_num", ascending=False).head(15))
@@ -637,15 +641,40 @@ with g2:
         fig.update_xaxes(categoryorder="total descending")
         st.plotly_chart(fig, use_container_width=True)
 
-# 3) Scatter: gas vs gas price (size=Rp)
-sc = df_plot[(df_plot["gas_used_num"] > 0) & (df_plot["gas_price_num"] > 0)]
+# 3) Scatter: gas vs gas price (size=Rp) + hovertemplate rapi + log scale opsional
+sc = df_plot[(df_plot["gas_used_num"] > 0) & (df_plot["gas_price_num"] > 0)].copy()
 if not sc.empty:
+    sc["tx_short"] = sc["tx_hash"].astype(str).fillna("").apply(lambda s: s[:6] + "…" + s[-4:] if len(s) > 12 else s)
+    sc["cost_str"] = sc["cost_idr_num"].round().astype(int).map(lambda v: f"{v:,}")
+    sc["gas_used_str"] = sc["gas_used_num"].round().astype(int).map(lambda v: f"{v:,}")
+    sc["gas_price_str"] = sc["gas_price_num"].round().astype(int).map(lambda v: f"{v:,}")
+
     fig = px.scatter(
         sc, x="gas_used_num", y="gas_price_num", size="cost_idr_num", color="network",
-        hover_data=["tx_hash","fn","contract"],
         title="Gas Used vs Gas Price (size = Biaya Rp)",
-        labels={"gas_used_num":"Gas Used","gas_price_num":"Gas Price (wei)","network":"Jaringan"}
+        labels={"gas_used_num":"Gas Used","gas_price_num":"Gas Price (wei)","network":"Jaringan"},
+        hover_data=None  # kita pakai hovertemplate custom
     )
+    fig.update_traces(
+        text=sc.apply(
+            lambda r: (
+                f"Function={r['fn']}"
+                f"<br>Tx={r['tx_short']}"
+                f"<br>Contract={r.get('contract','')}"
+                f"<br>Gas Used={r['gas_used_str']}"
+                f"<br>Gas Price (wei)={r['gas_price_str']}"
+                f"<br>Biaya (Rp)={r['cost_str']}"
+            ), axis=1
+        ),
+        hovertemplate="%{text}"
+    )
+
+    # log scale opsi
+    if scatter_scale in ("log x", "log x & y"):
+        fig.update_xaxes(type="log")
+    if scatter_scale in ("log y", "log x & y"):
+        fig.update_yaxes(type="log")
+
     st.plotly_chart(fig, use_container_width=True)
 
 # -------------------------------
