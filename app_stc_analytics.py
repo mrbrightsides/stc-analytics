@@ -398,264 +398,67 @@ page = st.sidebar.radio("Pilih tab", ["Cost (Vision)","Security (SWC)","Performa
 if page == "Cost (Vision)":
     st.title("💰 Cost Analytics — STC Vision")
 
-    # guard (opsional, biar gak NameError kalau salah indent lagi)
+    # --- define helper FIRST (di dalam halaman, tapi di luar expander) ---
+    def map_csv_cost(df_raw: pd.DataFrame) -> pd.DataFrame:
+        m = {
+            "Network":"network","Tx Hash":"tx_hash","From":"from_address","To":"to_address",
+            "Block":"block_number","Gas Used":"gas_used","Gas Price (Gwei)":"gas_price_gwei",
+            "Estimated Fee (ETH)":"cost_eth","Estimated Fee (Rp)":"cost_idr",
+            "Contract":"contract","Function":"function_name","Timestamp":"timestamp","Status":"status"
+        }
+        df = df_raw.rename(columns=m).copy()
+
+        df["project"] = "STC"
+        if "timestamp" in df.columns:
+            df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce").fillna(pd.Timestamp.utcnow())
+        else:
+            df["timestamp"] = pd.Timestamp.utcnow()
+
+        gwei = pd.to_numeric(df.get("gas_price_gwei", 0), errors="coerce").fillna(0)
+        df["gas_price_wei"] = (gwei * 1_000_000_000).round().astype("Int64")
+
+        status_series = df.get("status")
+        if status_series is not None:
+            df["meta_json"] = status_series.astype(str).apply(lambda s: json.dumps({"status": s}) if s else "{}")
+        else:
+            df["meta_json"] = "{}"
+
+        df["id"] = df.apply(lambda r: f"{r.get('tx_hash','')}::{(r.get('function_name') or '')}".strip(), axis=1)
+
+        cols = ["id","project","network","timestamp","tx_hash","contract","function_name",
+                "block_number","gas_used","gas_price_wei","cost_eth","cost_idr","meta_json"]
+        for c in cols:
+            if c not in df.columns: df[c] = None
+        df["block_number"] = pd.to_numeric(df["block_number"], errors="coerce").astype("Int64")
+        df["gas_used"]     = pd.to_numeric(df["gas_used"], errors="coerce").astype("Int64")
+        df["cost_eth"]     = pd.to_numeric(df["cost_eth"], errors="coerce")
+        df["cost_idr"]     = pd.to_numeric(df["cost_idr"], errors="coerce")
+        return df[cols]
+
     nd, cs = None, None
     ing = 0
 
     with st.expander("Ingest data (NDJSON/CSV) → DuckDB", expanded=False):
-        left, right = st.columns(2)
-        with left:
-            nd = st.file_uploader(
-                "Upload NDJSON (vision_costs.ndjson / jsonl)",
-                type=["ndjson","jsonl"], key="nd_cost"
-            )
-        with right:
-            cs = st.file_uploader("Upload CSV (dari STC-Vision)", type=None, key="csv_cost")
+        # … uploader, info, templates …
 
-        # ... info, link, template, def map_csv_cost(...)
-
-        # ✅ INGEST NDJSON (INDENT 8 SPASI)
+        # NDJSON ingest (tetap di dalam expander)
         if nd is not None:
-            rows = []
-            for line in nd:
-                try:
-                    rows.append(json.loads(line.decode("utf-8")))
-                except Exception:
-                    pass
-            if rows:
-                d = pd.DataFrame(rows)
-                if "id" not in d.columns:
-                    d["id"] = d.apply(lambda r: f"{r.get('tx_hash','')}::{(r.get('function_name') or '')}".strip(), axis=1)
-                if "meta_json" not in d.columns:
-                    if "meta" in d.columns:
-                        d["meta_json"] = d["meta"].apply(lambda x: json.dumps(x) if isinstance(x, dict) else (x if x else "{}"))
-                    else:
-                        d["meta_json"] = "{}"
+            # … proses NDJSON …
+            ing += upsert("vision_costs", d, ["id"], cols)
 
-                cols = [
-                    "id","project","network","timestamp","tx_hash","contract","function_name",
-                    "block_number","gas_used","gas_price_wei","cost_eth","cost_idr","meta_json"
-                ]
-                for c in cols:
-                    if c not in d.columns: d[c] = None
-
-                d["project"] = d.get("project").fillna("STC")
-                d["timestamp"] = pd.to_datetime(d["timestamp"], errors="coerce").fillna(pd.Timestamp.utcnow())
-                for numc in ["block_number","gas_used","gas_price_wei","cost_eth","cost_idr"]:
-                    d[numc] = pd.to_numeric(d[numc], errors="coerce")
-
-                ing += upsert("vision_costs", d, ["id"], cols)
-
-        # ✅ INGEST CSV (INDENT 8 SPASI)
+        # CSV ingest (fungsi SUDAH didefinisikan di atas)
         if cs is not None:
             raw = read_csv_any(cs)
-            d = map_csv_cost(raw)
-            ing += upsert("vision_costs", d, ["id"], d.columns.tolist())
+            if not raw.empty:               # guard biar gak error di DataFrame kosong
+                d = map_csv_cost(raw)
+                ing += upsert("vision_costs", d, ["id"], d.columns.tolist())
+            else:
+                st.warning("CSV kosong atau tidak terbaca.")
 
-        # ✅ Pesan sukses untuk dua jalur (INDENT 8 SPASI)
         if ing:
             st.success(f"{ing} baris masuk ke vision_costs.")
 
-    # ===== DI LUAR EXPANDER (INDENT 4 SPASI) =====
-    want_load = st.session_state.get("load_existing", False)
-    no_new_upload = (
-        (st.session_state.get('nd_cost') is None) and
-        (st.session_state.get('csv_cost') is None)
-    )
-    if no_new_upload and not want_load:
-        st.info("Belum ada data cost untuk sesi ini. Upload NDJSON/CSV atau aktifkan ‘Load existing stored data’ di sidebar.")
-        st.stop()
-
-    con = get_conn()
-    df = con.execute("SELECT * FROM vision_costs ORDER BY timestamp DESC").df()
-    con.close()
-
-    if df.empty:
-        st.info("Belum ada data cost.")
-    else:
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Total Rows", f"{len(df):,}")
-        c2.metric("Unique Tx", f"{df['tx_hash'].nunique():,}" if 'tx_hash' in df else "—")
-        c3.metric("Total IDR", f"{int(pd.to_numeric(df.get('cost_idr', 0), errors='coerce').fillna(0).sum()):,}")
-        st.markdown("### Detail Vision Costs")
-        st.dataframe(df, use_container_width=True)
-        st.download_button("⬇️ Download CSV (All)", data=csv_bytes(df),
-                           file_name="vision_costs_all.csv", mime="text/csv",
-                           use_container_width=True)
-
-# -------------------------------
-# SECURITY (SWC)
-# -------------------------------
-elif page == "Security (SWC)":
-    st.title("🛡️ Security Analytics — STC for SWC")
-
-    # --- mapping CSV/NDJSON -> schema + id fallback + dedup ---
-    def map_swc(df: pd.DataFrame) -> pd.DataFrame:
-        cols = ["finding_id","timestamp","network","contract","file","line_start","line_end",
-                "swc_id","title","severity","confidence","status","remediation","commit_hash"]
-        for c in cols:
-            if c not in df.columns:
-                df[c] = None
-
-        # fallback id: contract::swc_id::line_start
-        fallback = df.apply(
-            lambda r: f"{r.get('contract','')}::{r.get('swc_id','')}::{r.get('line_start','')}",
-            axis=1
-        )
-        if "finding_id" not in df.columns:
-            df["finding_id"] = fallback
-        else:
-            mask = df["finding_id"].isna() | (df["finding_id"].astype(str).str.strip() == "")
-            df.loc[mask, "finding_id"] = fallback[mask]
-
-        df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce").fillna(pd.Timestamp.utcnow())
-        df = df.drop_duplicates(subset=["finding_id"], keep="last").copy()
-        return df[cols]
-
-    # --- Ingest (AUTO seperti Bench/Vision) ---
-    with st.expander("Ingest CSV/NDJSON SWC Findings", expanded=False):
-        left, right = st.columns(2)
-        with left:
-            swc_csv = st.file_uploader("Upload CSV swc_findings.csv", type=None, key="swc_csv")
-        with right:
-            swc_nd = st.file_uploader("Upload NDJSON swc_findings.ndjson", type=["ndjson","jsonl"], key="swc_nd")
-
-        # ==== DOWNLOAD BUTTONS ====
-        col_dl1, col_dl2 = st.columns(2)
-        with col_dl1:
-            st.download_button(
-                "⬇️ Template CSV (SWC)",
-                data=csv_bytes(pd.DataFrame(columns=[
-                    "finding_id","timestamp","network","contract","file","line_start","line_end",
-                    "swc_id","title","severity","confidence","status","remediation","commit_hash"
-                ]).head(0)),
-                file_name="swc_findings_template.csv",
-                mime="text/csv",
-                use_container_width=True,
-            )
-        with col_dl2:
-            sample_rows = [
-                {"finding_id":"", "timestamp":"2025-08-11T09:45:00Z", "network":"Sepolia",
-                 "contract":"SmartReservation","file":"contracts/SmartReservation.sol",
-                 "line_start":98,"line_end":102,"swc_id":"SWC-105","title":"Potential issue SWC-105 detected",
-                 "severity":"Low","confidence":0.82,"status":"Open","remediation":"Review and document",
-                 "commit_hash":"0xa36e...c5b0"},
-                {"finding_id":"SmartTourismToken::SWC-108::279","timestamp":"2025-08-10T16:20:00Z",
-                 "network":"Arbitrum Sepolia","contract":"SmartTourismToken",
-                 "file":"contracts/SmartTourismToken.sol","line_start":279,"line_end":288,"swc_id":"SWC-108",
-                 "title":"Potential issue SWC-108 detected","severity":"Medium","confidence":0.87,"status":"Fixed",
-                 "remediation":"Refactor code and add checks","commit_hash":"0xc54f...54c8"},
-            ]
-            ndjson_bytes = ("\n".join(json.dumps(r) for r in sample_rows)).encode("utf-8")
-            st.download_button(
-                "⬇️ Contoh NDJSON (SWC)",
-                data=ndjson_bytes,
-                file_name="swc_findings_sample.ndjson",
-                mime="application/x-ndjson",
-                use_container_width=True,
-            )
-        # ==== END DOWNLOAD BUTTONS ====
-
-        # ---- Auto-ingest (langsung proses saat upload) ----
-        ing = 0
-
-        if swc_csv is not None:
-            d = read_csv_any(swc_csv)
-            d = map_swc(d)
-            ing += upsert("swc_findings", d, ["finding_id"], d.columns.tolist())
-
-        if swc_nd is not None:
-            rows = []
-            for line in swc_nd:
-                if not line:
-                    continue
-                try:
-                    rows.append(json.loads(line.decode("utf-8")))
-                except Exception:
-                    pass
-            if rows:
-                d = pd.DataFrame(rows)
-                d = map_swc(d)
-                ing += upsert("swc_findings", d, ["finding_id"], d.columns.tolist())
-
-        if ing:
-            st.success(f"{ing} temuan masuk ke swc_findings.")
-
-    # ===== DI LUAR EXPANDER (tapi masih di halaman SWC) =====
-    want_load = st.session_state.get("load_existing", False)
-    no_new_upload = (st.session_state.get("swc_csv") is None and st.session_state.get("swc_nd") is None)
-    if no_new_upload and not want_load:
-        st.info("Belum ada data temuan SWC untuk sesi ini. Upload CSV/NDJSON atau aktifkan ‘Load existing stored data’.")
-        st.stop()
-
-    # --- Load & tampilkan ---
-    con = get_conn()
-    df = con.execute("SELECT * FROM swc_findings ORDER BY timestamp DESC").df()
-    con.close()
-
-    if df.empty:
-        st.info("Belum ada data temuan SWC.")
-    else:
-        cols = st.columns(3)
-        nets = ["(All)"] + sorted(df["network"].dropna().astype(str).unique().tolist())
-        sevs = ["(All)"] + sorted(df["severity"].dropna().astype(str).unique().tolist())
-        with cols[0]: f_net = st.selectbox("Network", nets, index=0)
-        with cols[1]: f_sev = st.selectbox("Severity", sevs, index=0)
-        with cols[2]: f_swc = st.text_input("Cari SWC-ID (mis. SWC-107)", "")
-
-        if f_net != "(All)":
-            df = df[df["network"] == f_net]
-        if f_sev != "(All)":
-            df = df[df["severity"] == f_sev]
-        if f_swc.strip():
-            df = df[df["swc_id"].astype(str).str.contains(f_swc.strip(), case=False, na=False)]
-
-        total = len(df); high = (df["severity"].astype(str).str.lower() == "high").sum()
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Total Findings", f"{total:,}")
-        c2.metric("High Severity", f"{high:,}")
-        c3.metric("Unique SWC IDs", f"{df['swc_id'].nunique():,}")
-
-        pivot = df.pivot_table(index="swc_id", columns="severity", values="finding_id",
-                               aggfunc="count", fill_value=0)
-        if not pivot.empty:
-            fig = px.imshow(pivot, text_auto=True, aspect="auto", title="SWC-ID × Severity (count)")
-            st.plotly_chart(fig, use_container_width=True)
-
-        st.markdown("### Detail Temuan")
-        detail_cols = ["timestamp","network","contract","file","line_start","swc_id","title",
-                       "severity","confidence","status","remediation"]
-        st.dataframe(df[detail_cols], use_container_width=True)
-        st.download_button(
-            "⬇️ Download hasil filter (CSV)",
-            data=csv_bytes(df[detail_cols]),
-            file_name="swc_filtered.csv", mime="text/csv", use_container_width=True
-        )
-
-        # --- SWC Knowledge ---
-        st.markdown("### 🔎 SWC Knowledge")
-        kb = load_swc_kb()
-        if not kb:
-            st.warning("SWC KB JSON belum ditemukan. Letakkan file **swc_kb.json** di direktori app atau set env `SWC_KB_PATH`.")
-        else:
-            available_ids = sorted(df["swc_id"].dropna().astype(str).unique().tolist())
-            if not available_ids:
-                st.info("Tidak ada SWC-ID pada data saat ini.")
-            else:
-                sel = st.selectbox("Pilih SWC-ID untuk penjelasan", available_ids, index=0)
-                entry = kb.get(sel)
-                if entry:
-                    st.subheader(f"{sel} — {entry.get('title','')}")
-                    desc = entry.get("description","").strip()
-                    if desc:
-                        st.markdown(desc)
-                    mit = entry.get("mitigation","").strip()
-                    if mit:
-                        st.markdown("**Mitigation:**")
-                        for b in [x.strip() for x in re.split(r"[\n;]", mit) if x.strip()]:
-                            st.markdown(f"- {b}")
-                else:
-                    st.info("SWC ini belum ada di KB JSON.")
+    # … load & tampilkan tabel …
 
 # -------------------------------
 # PERFORMANCE (Bench)
