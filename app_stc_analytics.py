@@ -23,15 +23,10 @@ tool_choice = st.radio("Tools", TOOLS, horizontal=True, key="tool_choice")
 # Modules
 if module_choice == "Tourism":
     render_tourism_sidebar()
-    t1, t2, t3 = st.tabs(["Cost (Vision)","Security (SWC)","Performance (Bench)"])
+    t1, t2, t3 = st.tabs(["Cost (Vision)", "Security (SWC)", "Performance (Bench)"])
     with t1: render_cost_page()
     with t2: render_swc_page()
     with t3: render_bench_page()
-else:
-    st.markdown(f"## Module: {module_choice}")
-    st.markdown("<h1 style='text-align:center;color:gray;'>COMING SOON</h1>", unsafe_allow_html=True)
-
-st.divider()
 
 # Tools
 if tool_choice == "Scan":
