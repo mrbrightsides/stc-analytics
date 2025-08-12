@@ -6,39 +6,37 @@ import streamlit as st
 from datetime import datetime
 from pathlib import Path
 import hashlib
-from modules import (
-    module_tourism, module_finance, module_nft,
-    module_supplychain, module_custom
-)
-from tools_scan import scan_tool
-from tools_test import test_tool
-from tools_contract import contract_tool
-from sidebar_router import sidebar_nav
 
 st.set_page_config(page_title="STC Analytics", layout="wide")
 
-module, tool = sidebar_nav()
+# ===== Top Navbar: Modules =====
+MODULES = ["Tourism", "Finance (DeFi)", "NFT/Token", "Supply Chain", "Custom Monitor"]
+module_choice = st.radio("Modules", MODULES, horizontal=True, key="module_choice")
 
-# ===== Modules =====
-if module == "Tourism":
-    module_tourism(render_cost=render_cost_page, render_swc=render_swc_page, render_bench=render_bench_page)
-elif module == "Finance (DeFi)":
-    module_finance()
-elif module == "NFT/Token":
-    module_nft()
-elif module == "Supply Chain":
-    module_supplychain()
+# ===== Render Module Area =====
+if module_choice == "Tourism":
+    # Tourism tetap pakai sidebar lama karena sidebar dibuat di dalam fungsi2 ini
+    t1, t2, t3 = st.tabs(["Cost (Vision)", "Security (SWC)", "Performance (Bench)"])
+    with t1: render_cost_page()
+    with t2: render_swc_page()
+    with t3: render_bench_page()
 else:
-    module_custom()
+    # Placeholder besar: COMING SOON
+    st.markdown(f"## Module: {module_choice}")
+    st.markdown("<h1 style='text-align:center;color:gray;'>COMING SOON</h1>", unsafe_allow_html=True)
 
 st.divider()
+TOOLS = ["Scan", "Test", "Contract"]
+tool_choice = st.radio("Tools", TOOLS, horizontal=True, key="tool_choice")
 
-# ===== Tools =====
-if tool == "Scan":
-    scan_tool()
-elif tool == "Test":
+if tool_choice == "Scan":
+    from tools_scan import scan_tool
+    scan_tool()  # di sini nanti baca Supabase (Live) + Upload lokal
+elif tool_choice == "Test":
+    from tools_test import test_tool
     test_tool()
 else:
+    from tools_contract import contract_tool
     contract_tool()
 
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
