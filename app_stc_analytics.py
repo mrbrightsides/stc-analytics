@@ -50,16 +50,6 @@ st.divider()
 TOOLS = ["Scan", "Test", "Contract"]
 tool_choice = st.radio("Tools", TOOLS, horizontal=True, key="tool_choice")
 
-if tool_choice == "Scan":
-    from tools_scan import scan_tool
-    scan_tool()  # di sini nanti baca Supabase (Live) + Upload lokal
-elif tool_choice == "Test":
-    from tools_test import test_tool
-    test_tool()
-else:
-    from tools_contract import contract_tool
-    contract_tool()
-
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 
 def _file_hash(p: Path) -> str:
