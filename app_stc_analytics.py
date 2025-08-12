@@ -399,136 +399,47 @@ if page == "Cost (Vision)":
     st.title("💰 Cost Analytics — STC Vision")
 
     with st.expander("Ingest data (NDJSON/CSV) → DuckDB", expanded=False):
-        left, right = st.columns(2)
-        with left:
-            nd = st.file_uploader(
-                "Upload NDJSON (vision_costs.ndjson / jsonl)",
-                type=["ndjson","jsonl"], key="nd_cost"
-            )
-        with right:
-            cs = st.file_uploader("Upload CSV (dari STC-Vision)", type=None, key="csv_cost")
+        # uploader, info, download template ...
+        # (kode map_csv_cost kamu di sini)
 
-        # Info + link sumber data (MASIH di dalam expander)
-        st.info(
-            "Sumber data Vision diambil dari **STC GasVision**. "
-            "Set **Jaringan & Masukkan TxHash** → "
-            "**Download CSV** → upload di panel ini.",
-            icon="ℹ️",
-        )
-        st.link_button(
-            "🔗 Buka STC GasVision",
-            "https://stc-gasvision.streamlit.app/",
-            use_container_width=True,
-        )
+        if nd is not None:
+            rows = []
+            for line in nd:
+                try:
+                    rows.append(json.loads(line.decode("utf-8")))
+                except Exception:
+                    pass
+            if rows:
+                d = pd.DataFrame(rows)
+                if "id" not in d.columns:
+                    d["id"] = d.apply(lambda r: f"{r.get('tx_hash','')}::{(r.get('function_name') or '')}".strip(), axis=1)
+                if "meta_json" not in d.columns:
+                    if "meta" in d.columns:
+                        d["meta_json"] = d["meta"].apply(lambda x: json.dumps(x) if isinstance(x, dict) else (x if x else "{}"))
+                    else:
+                        d["meta_json"] = "{}"
+                cols = [
+                    "id","project","network","timestamp","tx_hash","contract","function_name",
+                    "block_number","gas_used","gas_price_wei","cost_eth","cost_idr","meta_json"
+                ]
+                for c in cols:
+                    if c not in d.columns:
+                        d[c] = None
+                d["project"] = d.get("project").fillna("STC")
+                d["timestamp"] = pd.to_datetime(d["timestamp"], errors="coerce").fillna(pd.Timestamp.utcnow())
+                for numc in ["block_number","gas_used","gas_price_wei","cost_eth","cost_idr"]:
+                    d[numc] = pd.to_numeric(d[numc], errors="coerce")
+                ing += upsert("vision_costs", d, ["id"], cols)
 
-        # Templates / samples (MASIH di dalam expander)
-        tpl_cost, _, _, _ = sample_templates()
-        c1, c2 = st.columns(2)
-        with c1:
-            st.download_button(
-                "⬇️ Template CSV (Vision)",
-                data=csv_bytes(tpl_cost),
-                file_name="vision_template.csv",
-                mime="text/csv",
-                use_container_width=True
-            )
-        with c2:
-            st.download_button(
-                "⬇️ Contoh NDJSON (Vision)",
-                data=b'{"id":"demo::bookHotel","network":"Sepolia","cost_idr":15000}\n',
-                file_name="vision_sample.ndjson",
-                mime="application/x-ndjson",
-                use_container_width=True
-            )
+        if cs is not None:
+            raw = read_csv_any(cs)
+            d = map_csv_cost(raw)
+            ing += upsert("vision_costs", d, ["id"], d.columns.tolist())
 
-        ing = 0
+        if ing:
+            st.success(f"{ing} baris masuk ke vision_costs.")
 
-        def map_csv_cost(df_raw: pd.DataFrame) -> pd.DataFrame:
-            m = {
-                "Network": "network", "Tx Hash": "tx_hash",
-                "From": "from_address", "To": "to_address",
-                "Block": "block_number", "Gas Used": "gas_used",
-                "Gas Price (Gwei)": "gas_price_gwei",
-                "Estimated Fee (ETH)": "cost_eth",
-                "Estimated Fee (Rp)": "cost_idr",
-                "Contract": "contract", "Function": "function_name",
-                "Timestamp": "timestamp", "Status": "status"
-            }
-            df = df_raw.rename(columns=m).copy()
-
-            df["project"] = "STC"
-            if "timestamp" in df.columns:
-                df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce").fillna(pd.Timestamp.utcnow())
-            else:
-                df["timestamp"] = pd.Timestamp.utcnow()
-
-            gwei = pd.to_numeric(df.get("gas_price_gwei", 0), errors="coerce").fillna(0)
-            df["gas_price_wei"] = (gwei * 1_000_000_000).round().astype("Int64")
-
-            status_series = df.get("status", None)
-            if status_series is not None:
-                df["meta_json"] = status_series.astype(str).apply(lambda s: json.dumps({"status": s}) if s else "{}")
-            else:
-                df["meta_json"] = "{}"
-
-            df["id"] = df.apply(lambda r: f"{r.get('tx_hash','')}::{(r.get('function_name') or '')}".strip(), axis=1)
-
-            cols = [
-                "id","project","network","timestamp","tx_hash","contract","function_name",
-                "block_number","gas_used","gas_price_wei","cost_eth","cost_idr","meta_json"
-            ]
-            for c in cols:
-                if c not in df.columns: df[c] = None
-            df["block_number"] = pd.to_numeric(df["block_number"], errors="coerce").astype("Int64")
-            df["gas_used"]     = pd.to_numeric(df["gas_used"], errors="coerce").astype("Int64")
-            df["cost_eth"]     = pd.to_numeric(df["cost_eth"], errors="coerce")
-            df["cost_idr"]     = pd.to_numeric(df["cost_idr"], errors="coerce")
-            return df[cols]
-
-        # ... di dalam expander (setelah dua blok ingest)
-if nd is not None:
-    rows = []
-    for line in nd:
-        try:
-            rows.append(json.loads(line.decode("utf-8")))
-        except Exception:
-            pass
-    if rows:
-        d = pd.DataFrame(rows)
-        if "id" not in d.columns:
-            d["id"] = d.apply(lambda r: f"{r.get('tx_hash','')}::{(r.get('function_name') or '')}".strip(), axis=1)
-        if "meta_json" not in d.columns:
-            if "meta" in d.columns:
-                d["meta_json"] = d["meta"].apply(lambda x: json.dumps(x) if isinstance(x, dict) else (x if x else "{}"))
-            else:
-                d["meta_json"] = "{}"
-
-        cols = [
-            "id","project","network","timestamp","tx_hash","contract","function_name",
-            "block_number","gas_used","gas_price_wei","cost_eth","cost_idr","meta_json"
-        ]
-        for c in cols:
-            if c not in d.columns:
-                d[c] = None
-
-        # set project & types
-        d["project"] = d.get("project").fillna("STC")
-        d["timestamp"] = pd.to_datetime(d["timestamp"], errors="coerce").fillna(pd.Timestamp.utcnow())
-        for numc in ["block_number","gas_used","gas_price_wei","cost_eth","cost_idr"]:
-            d[numc] = pd.to_numeric(d[numc], errors="coerce")
-
-        ing += upsert("vision_costs", d, ["id"], cols)
-
-if cs is not None:
-    raw = read_csv_any(cs)
-    d = map_csv_cost(raw)
-    ing += upsert("vision_costs", d, ["id"], d.columns.tolist())
-
-# 👉 tampilkan pesan sukses untuk kedua jalur
-if ing:
-    st.success(f"{ing} baris masuk ke vision_costs.")
-
-    # ← Di sini kita sudah keluar dari expander, tapi masih di dalam blok `if page == ...`
+    # ← keluar dari expander, tapi masih di dalam if page == ...
     want_load = st.session_state.get("load_existing", False)
     no_new_upload = (
         (st.session_state.get('nd_cost') is None) and
@@ -545,7 +456,6 @@ if ing:
     if df.empty:
         st.info("Belum ada data cost.")
     else:
-        # ringkasan kecil (opsional)
         c1, c2, c3 = st.columns(3)
         c1.metric("Total Rows", f"{len(df):,}")
         c2.metric("Unique Tx", f"{df['tx_hash'].nunique():,}" if 'tx_hash' in df else "—")
