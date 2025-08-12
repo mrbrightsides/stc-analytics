@@ -505,12 +505,12 @@ if page == "Cost (Vision)":
     with st.expander("Ingest data (NDJSON/CSV) → DuckDB", expanded=False):
         left, right = st.columns(2)
         with left:
-            nd = st.file_uploader(
-                "Upload NDJSON (vision_costs.ndjson / jsonl)",
-                type=["ndjson", "jsonl"], key="nd_cost"
+            cs = st.file_uploader(
+                "Upload CSV (dari STC-Vision)",
+                type=None, key="csv_cost"
             )
         with right:
-            cs = st.file_uploader("Upload CSV (dari STC-Vision)", type=None, key="csv_cost")
+            nd = st.file_uploader("Upload NDJSON (vision_costs.ndjson / jsonl)", type=["ndjson", "jsonl"], key="nd_cost")
 
         # === Templates / samples ===
         tpl_cost = pd.DataFrame(columns=[
