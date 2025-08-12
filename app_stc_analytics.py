@@ -10,6 +10,9 @@ from tourism_pages import (
     render_tourism_sidebar,
     render_cost_page, render_swc_page, render_bench_page
 )
+from tools_scan import scan_tool
+from tools_test import test_tool
+from tools_contract import contract_tool
 
 st.set_page_config(page_title="STC Analytics", layout="wide")
 
