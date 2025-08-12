@@ -555,19 +555,39 @@ if page == "Cost (Vision)":
             use_container_width=True
         )
 
-# ====== Filters & plotting (polished++) ======
+# ====== Filters & plotting (with explorer links) ======
+UNPARSED_LABEL = "⚠ Unparsed Function"
+
 df_base = df.copy()
 df_base["ts"] = pd.to_datetime(df_base["timestamp"], errors="coerce")
-df_base["fn"] = df_base["function_name"].fillna("(⚠ Unparsed Function)")
+df_base["fn_raw"] = df_base["function_name"]
+df_base["fn"] = df_base["fn_raw"].fillna(UNPARSED_LABEL).replace({"(unknown)": UNPARSED_LABEL})
 df_base["cost_idr_num"]  = pd.to_numeric(df_base.get("cost_idr", 0), errors="coerce").fillna(0)
 df_base["gas_used_num"]  = pd.to_numeric(df_base.get("gas_used", 0), errors="coerce").fillna(0)
 df_base["gas_price_num"] = pd.to_numeric(df_base.get("gas_price_wei", 0), errors="coerce").fillna(0)
 
-# --- UI Filters ---
+# --- kecilkan tx hash buat hover ---
+def short_tx(x: str) -> str:
+    x = str(x or "")
+    return x[:6] + "…" + x[-4:] if len(x) > 12 else x
+
+# --- mapping explorer (feel free to tambah) ---
+def explorer_tx_url(network: str, tx: str) -> str:
+    base = {
+        "Ethereum": "https://etherscan.io/tx/{}",
+        "Sepolia": "https://sepolia.etherscan.io/tx/{}",
+        "Arbitrum": "https://arbiscan.io/tx/{}",
+        "Arbitrum One": "https://arbiscan.io/tx/{}",
+        "Arbitrum Sepolia": "https://sepolia.arbiscan.io/tx/{}",
+        "Polygon": "https://polygonscan.com/tx/{}",
+        "Polygon Amoy": "https://amoy.polygonscan.com/tx/{}",
+    }.get(str(network), "https://etherscan.io/tx/{}")
+    return base.format(tx)
+
+# --- UI Filters (dengan help) ---
 fc1, fc2, fc3, fc4, fc5, fc6, fc7 = st.columns([1.4,1,1,1,1,1,1])
 with fc1:
-    dmin = df_base["ts"].min()
-    dmax = df_base["ts"].max()
+    dmin = df_base["ts"].min(); dmax = df_base["ts"].max()
     date_range = st.date_input(
         "Tanggal",
         value=(None if pd.isna(dmin) else dmin.date(),
@@ -576,11 +596,17 @@ with fc1:
 with fc2:
     f_net = st.selectbox("Network", ["(All)"] + sorted(df_base["network"].dropna().astype(str).unique().tolist()), index=0)
 with fc3:
-    f_fn  = st.selectbox("Function", ["(All)"] + sorted(df_base["fn"].dropna().astype(str).unique().tolist()), index=0)
+    f_fn  = st.selectbox(
+        "Function",
+        ["(All)"] + sorted(df_base["fn"].dropna().astype(str).unique().tolist()),
+        index=0,
+        help=f"'{UNPARSED_LABEL}' berarti nama fungsi tidak terdeteksi dari data transaksi/ABI."
+    )
 
 hide_unknown_default = (f_fn != "(All)")
 with fc4:
-    hide_unknown = st.checkbox("Sembunyikan (⚠ Unparsed Function)", value=hide_unknown_default)
+    hide_unknown = st.checkbox(f"Sembunyikan ({UNPARSED_LABEL})", value=hide_unknown_default,
+                               help="Sembunyikan transaksi yang fungsi kontraknya belum ter-parse.")
 with fc5:
     do_smooth = st.checkbox("Smoothing (7-pt)", value=False)
 with fc6:
@@ -592,26 +618,26 @@ with fc7:
 df_plot = df_base.copy()
 if isinstance(date_range, (list, tuple)) and len(date_range) == 2:
     start, end = date_range
-    if start:
-        df_plot = df_plot[df_plot["ts"] >= pd.Timestamp(start)]
-    if end:
-        df_plot = df_plot[df_plot["ts"] < (pd.Timestamp(end) + pd.Timedelta(days=1))]
+    if start: df_plot = df_plot[df_plot["ts"] >= pd.Timestamp(start)]
+    if end:   df_plot = df_plot[df_plot["ts"] < (pd.Timestamp(end) + pd.Timedelta(days=1))]
 if f_net != "(All)":
     df_plot = df_plot[df_plot["network"] == f_net]
 if f_fn != "(All)":
     df_plot = df_plot[df_plot["fn"] == f_fn]
 if hide_unknown or (f_fn != "(All)"):
-    df_plot = df_plot[df_plot["fn"] != "(unknown)"]
+    df_plot = df_plot[df_plot["fn"] != UNPARSED_LABEL]
 
 # --- Badge jumlah data ---
-st.caption(f"Menampilkan **{len(df_plot):,}** transaksi"
-           + (f" | Network: **{f_net}**" if f_net != "(All)" else "")
-           + (f" | Function: **{f_fn}**" if f_fn != "(All)" else ""))
+st.caption(
+    f"Menampilkan **{len(df_plot):,}** transaksi"
+    + (f" | Network: **{f_net}**" if f_net != "(All)" else "")
+    + (f" | Function: **{f_fn}**" if f_fn != "(All)" else "")
+)
 
 # ===== Charts =====
 g1, g2 = st.columns(2)
 
-# 1) Line: biaya vs waktu (opsional smoothing + log Y)
+# 1) Line chart
 with g1:
     ts = df_plot.dropna(subset=["ts"]).sort_values("ts")
     if not ts.empty:
@@ -628,7 +654,7 @@ with g1:
             fig.update_yaxes(type="log")
         st.plotly_chart(fig, use_container_width=True)
 
-# 2) Bar: total biaya per function (warna per function)
+# 2) Bar chart (warna khusus untuk Unparsed)
 with g2:
     by_fn = (df_plot.groupby("fn", as_index=False)["cost_idr_num"].sum()
                      .sort_values("cost_idr_num", ascending=False).head(15))
@@ -636,46 +662,62 @@ with g2:
         fig = px.bar(
             by_fn, x="fn", y="cost_idr_num", color="fn", text_auto=True,
             title="Total Biaya per Function (Rp) — Top 15",
-            labels={"fn":"Function","cost_idr_num":"Total Biaya (Rp)"}
+            labels={"fn":"Function","cost_idr_num":"Total Biaya (Rp)"},
+            color_discrete_map={UNPARSED_LABEL: "#F59E0B"}  # amber
         )
         fig.update_xaxes(categoryorder="total descending")
         st.plotly_chart(fig, use_container_width=True)
 
-# 3) Scatter: gas vs gas price (size=Rp) + hovertemplate rapi + log scale opsional
+# 3) Scatter (dengan hover rapi dan opsi log)
 sc = df_plot[(df_plot["gas_used_num"] > 0) & (df_plot["gas_price_num"] > 0)].copy()
 if not sc.empty:
-    sc["tx_short"] = sc["tx_hash"].astype(str).fillna("").apply(lambda s: s[:6] + "…" + s[-4:] if len(s) > 12 else s)
+    sc["tx_short"] = sc["tx_hash"].astype(str).map(short_tx)
     sc["cost_str"] = sc["cost_idr_num"].round().astype(int).map(lambda v: f"{v:,}")
     sc["gas_used_str"] = sc["gas_used_num"].round().astype(int).map(lambda v: f"{v:,}")
     sc["gas_price_str"] = sc["gas_price_num"].round().astype(int).map(lambda v: f"{v:,}")
+    sc["explorer_url"] = sc.apply(lambda r: explorer_tx_url(r["network"], r["tx_hash"]), axis=1)
 
     fig = px.scatter(
         sc, x="gas_used_num", y="gas_price_num", size="cost_idr_num", color="network",
         title="Gas Used vs Gas Price (size = Biaya Rp)",
         labels={"gas_used_num":"Gas Used","gas_price_num":"Gas Price (wei)","network":"Jaringan"},
-        hover_data=None  # kita pakai hovertemplate custom
+        hover_data=None
     )
     fig.update_traces(
         text=sc.apply(
             lambda r: (
                 f"Function={r['fn']}"
                 f"<br>Tx={r['tx_short']}"
-                f"<br>Contract={r.get('contract','')}"
                 f"<br>Gas Used={r['gas_used_str']}"
                 f"<br>Gas Price (wei)={r['gas_price_str']}"
                 f"<br>Biaya (Rp)={r['cost_str']}"
+                f"<br>(Buka detail di tabel Unparsed di bawah)"
             ), axis=1
         ),
         hovertemplate="%{text}"
     )
-
-    # log scale opsi
     if scatter_scale in ("log x", "log x & y"):
         fig.update_xaxes(type="log")
     if scatter_scale in ("log y", "log x & y"):
         fig.update_yaxes(type="log")
-
     st.plotly_chart(fig, use_container_width=True)
+
+# ===== Daftar transaksi 'Unparsed' dengan link explorer =====
+unparsed = df_base[df_base["fn"] == UNPARSED_LABEL].copy()
+if not unparsed.empty:
+    unparsed["Explorer"] = unparsed.apply(lambda r: explorer_tx_url(r["network"], r["tx_hash"]), axis=1)
+    unparsed["Tx (short)"] = unparsed["tx_hash"].map(short_tx)
+    st.markdown("#### 🔎 Unparsed Function — periksa di explorer")
+    st.dataframe(
+        unparsed[["timestamp","network","contract","Tx (short)","Explorer","cost_idr"]],
+        use_container_width=True,
+        column_config={
+            "Explorer": st.column_config.LinkColumn("Explorer", display_text="Open"),
+            "cost_idr": st.column_config.NumberColumn("Biaya (Rp)", format="%,d"),
+            "timestamp": st.column_config.DatetimeColumn("Waktu"),
+        }
+    )
+    st.caption("Catatan: Unparsed berarti nama fungsi tidak terdeteksi dari data transaksi. Cek ABI/source di explorer.")
 
 # -------------------------------
 # SECURITY (SWC)
