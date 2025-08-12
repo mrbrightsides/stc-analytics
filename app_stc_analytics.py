@@ -18,7 +18,7 @@ tool_choice = st.radio("Tools", TOOLS, horizontal=True, key="tool_choice")
 
 # Modules
 if module_choice == "Tourism":
-    render_tourism_sidebar()           # <- pastikan fungsi di atas sudah didefinisikan
+    render_tourism_sidebar()
     t1, t2, t3 = st.tabs(["Cost (Vision)","Security (SWC)","Performance (Bench)"])
     with t1: render_cost_page()
     with t2: render_swc_page()
@@ -479,17 +479,19 @@ def upsert(table: str, df: pd.DataFrame, key_cols: list, cols: list) -> int:
     return n
 
 def render_tourism_sidebar():
+    import streamlit as st, duckdb
     st.sidebar.title("🧭 STC Analytics")
     with st.sidebar.expander("⚙️ Data control", expanded=True):
         st.checkbox("Load existing stored data", value=False, key="load_existing")
         if st.button("🧹 Clear all DuckDB data", use_container_width=True):
             con = duckdb.connect(DB_PATH)
-            for t in ["vision_costs","swc_findings","bench_runs","bench_tx"]:
+            for t in ["vision_costs", "swc_findings", "bench_runs", "bench_tx"]:
                 con.execute(f"DELETE FROM {t};")
             con.close()
             st.success("Database cleared. Siap upload data baru.")
         if st.button("🧨 Reset schema (DROP & CREATE)", use_container_width=True):
-            drop_all(); ensure_db()
+            drop_all()
+            ensure_db()
             st.success("Schema di-reset. Tabel dibuat ulang.")
 
 def render_cost_page():
