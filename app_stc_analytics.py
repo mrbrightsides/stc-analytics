@@ -59,13 +59,9 @@ def sample_templates():
 
 if st.sidebar.button("🔄 Reload templates (clear cache)"):
     st.cache_data.clear()
+    import time; time.sleep(0.2)  # kasih jeda kecil
     try:
         st.rerun()
-    except Exception:
-        try:
-            st.experimental_rerun()
-        except Exception:
-            pass
 
 # --- NDJSON reader helper ---
 def read_ndjson(uploaded):
