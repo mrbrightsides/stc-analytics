@@ -627,6 +627,13 @@ if f_fn != "(All)":
 if hide_unknown or (f_fn != "(All)"):
     df_plot = df_plot[df_plot["fn"] != UNPARSED_LABEL]
 
+# --- Badge jumlah data ---
+st.caption(
+    f"Menampilkan **{len(df_plot):,}** transaksi"
+    + (f" | Network: **{f_net}**" if f_net != "(All)" else "")
+    + (f" | Function: **{f_fn}**" if f_fn != "(All)" else "")
+)
+
 # --- Stats & downloads ---
 # df_filtered_for_stats: setelah filter Tanggal + Network + Function (TAPI belum hide unparsed)
 df_filtered_for_stats = df_base.copy()
