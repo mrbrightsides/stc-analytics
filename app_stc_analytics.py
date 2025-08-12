@@ -5,20 +5,29 @@ import plotly.express as px
 import streamlit as st
 from datetime import datetime
 from pathlib import Path
+import hashlib
 
-st.cache_data.clear()
+TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 
-TEMPLATES_DIR = Path("./templates").resolve()
+def _file_hash(p: Path) -> str:
+    try:
+        with p.open("rb") as f:
+            h = hashlib.sha256()
+            for chunk in iter(lambda: f.read(8192), b""):
+                h.update(chunk)
+        return h.hexdigest()
+    except Exception:
+        return "missing"
 
 @st.cache_data(show_spinner=False)
-def _load_csv_cached(path_str: str, mtime: float) -> pd.DataFrame:
-    # cache key = (path, mtime). Kalau file ganti, mtime berubah -> cache refresh
+def _read_csv_with_key(path_str: str, content_hash: str) -> pd.DataFrame:
+    # cache key = (path_str, content_hash) -> isi file berubah, cache auto refresh
     return pd.read_csv(path_str)
 
 def _load_csv(path: Path, fallback_cols: list[str]) -> pd.DataFrame:
     try:
         if path.exists():
-            return _load_csv_cached(str(path), path.stat().st_mtime)
+            return _read_csv_with_key(str(path), _file_hash(path))
         else:
             st.warning(f"Template tidak ditemukan: {path.name} — pakai fallback kosong.")
     except Exception as e:
