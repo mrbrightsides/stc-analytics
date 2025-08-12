@@ -555,75 +555,96 @@ if page == "Cost (Vision)":
             use_container_width=True
         )
 
-# --- Filters (di atas grafik) ---
-fc1, fc2, fc3, fc4 = st.columns(4)
-with fc1:
-    dmin = pd.to_datetime(df["timestamp"], errors="coerce").min()
-    dmax = pd.to_datetime(df["timestamp"], errors="coerce").max()
-    date_range = st.date_input("Tanggal", value=(dmin.date() if pd.notna(dmin) else None,
-                                                 dmax.date() if pd.notna(dmax) else None))
-with fc2:
-    f_net = st.selectbox("Network", ["(All)"] + sorted(df["network"].dropna().astype(str).unique().tolist()), index=0)
-with fc3:
-    f_fn = st.selectbox("Function", ["(All)"] + sorted(df["function_name"].dropna().astype(str).unique().tolist()), index=0)
-with fc4:
-    hide_unknown = st.checkbox("Sembunyikan (unknown)", value=False)
+# ====== Filters & plotting (polished) ======
+df_base = df.copy()
+df_base["ts"] = pd.to_datetime(df_base["timestamp"], errors="coerce")
+df_base["fn"] = df_base["function_name"].fillna("(unknown)")
+df_base["cost_idr_num"]  = pd.to_numeric(df_base.get("cost_idr", 0), errors="coerce").fillna(0)
+df_base["gas_used_num"]  = pd.to_numeric(df_base.get("gas_used", 0), errors="coerce").fillna(0)
+df_base["gas_price_num"] = pd.to_numeric(df_base.get("gas_price_wei", 0), errors="coerce").fillna(0)
 
-df_plot = df.copy()
-df_plot["ts"] = pd.to_datetime(df_plot["timestamp"], errors="coerce")
+# --- UI Filters ---
+fc1, fc2, fc3, fc4, fc5 = st.columns([1.4,1,1,1,1])
+with fc1:
+    dmin = df_base["ts"].min()
+    dmax = df_base["ts"].max()
+    date_range = st.date_input(
+        "Tanggal",
+        value=(None if pd.isna(dmin) else dmin.date(),
+               None if pd.isna(dmax) else dmax.date())
+    )
+with fc2:
+    f_net = st.selectbox("Network", ["(All)"] + sorted(df_base["network"].dropna().astype(str).unique().tolist()), index=0)
+with fc3:
+    f_fn  = st.selectbox("Function", ["(All)"] + sorted(df_base["fn"].dropna().astype(str).unique().tolist()), index=0)
+# auto-hide unknown jika function dipilih
+hide_unknown_default = (f_fn != "(All)")
+with fc4:
+    hide_unknown = st.checkbox("Sembunyikan (unknown)", value=hide_unknown_default)
+with fc5:
+    # opsi smoothing
+    do_smooth = st.checkbox("Smoothing (7-pt)", value=False)
+
+# --- Apply filters ---
+df_plot = df_base.copy()
 if isinstance(date_range, (list, tuple)) and len(date_range) == 2:
     start, end = date_range
-    if start and end:
-        df_plot = df_plot[(df_plot["ts"] >= pd.Timestamp(start)) & (df_plot["ts"] <= pd.Timestamp(end) + pd.Timedelta(days=1))]
+    if start:
+        df_plot = df_plot[df_plot["ts"] >= pd.Timestamp(start)]
+    if end:
+        df_plot = df_plot[df_plot["ts"] < (pd.Timestamp(end) + pd.Timedelta(days=1))]
+
 if f_net != "(All)":
     df_plot = df_plot[df_plot["network"] == f_net]
 if f_fn != "(All)":
-    df_plot = df_plot[df_plot["function_name"] == f_fn]
-if hide_unknown:
-    df_plot = df_plot[df_plot["function_name"].notna()]
+    df_plot = df_plot[df_plot["fn"] == f_fn]
+if hide_unknown or (f_fn != "(All)"):
+    df_plot = df_plot[df_plot["fn"] != "(unknown)"]
 
-        # ===== Grafik (versi polished) =====
-df_plot = df.copy()
-df_plot["cost_idr_num"] = pd.to_numeric(df_plot.get("cost_idr", 0), errors="coerce").fillna(0)
-df_plot["gas_used_num"] = pd.to_numeric(df_plot.get("gas_used", 0), errors="coerce").fillna(0)
-df_plot["gas_price_num"] = pd.to_numeric(df_plot.get("gas_price_wei", 0), errors="coerce").fillna(0)
-df_plot["ts"] = pd.to_datetime(df_plot.get("timestamp"), errors="coerce")
-df_plot["fn"] = df_plot["function_name"].fillna("(unknown)")
+# --- Badge jumlah data + quick stats ---
+st.caption(f"Menampilkan **{len(df_plot):,}** transaksi"
+           + (f" | Network: **{f_net}**" if f_net != "(All)" else "")
+           + (f" | Function: **{f_fn}**" if f_fn != "(All)" else ""))
 
+# ===== Charts =====
 g1, g2 = st.columns(2)
 
-# 1) Line: biaya vs waktu (pakai label yang enak dibaca)
+# 1) Line: biaya vs waktu (opsional smoothing rolling 7)
 with g1:
     ts = df_plot.dropna(subset=["ts"]).sort_values("ts")
     if not ts.empty:
+        y = "cost_idr_num"
+        if do_smooth and len(ts) >= 7:
+            ts = ts.assign(cost_smooth=ts.groupby("network")[y].transform(lambda s: s.rolling(7, min_periods=1).mean()))
+            y = "cost_smooth"
         fig = px.line(
-            ts, x="ts", y="cost_idr_num", color="network", markers=True,
+            ts, x="ts", y=y, color="network", markers=not do_smooth,
             title="Biaya per Transaksi (Rp) vs Waktu",
-            labels={"ts":"Waktu", "cost_idr_num":"Biaya (Rp)", "network":"Jaringan"}
+            labels={"ts":"Waktu", y:"Biaya (Rp)", "network":"Jaringan"}
         )
         st.plotly_chart(fig, use_container_width=True)
 
-# 2) Bar: total biaya per function (urutan descending & limit 15)
+# 2) Bar: total biaya per function (warna per function, top 15)
 with g2:
     by_fn = (df_plot.groupby("fn", as_index=False)["cost_idr_num"].sum()
-                    .sort_values("cost_idr_num", ascending=False).head(15))
+                     .sort_values("cost_idr_num", ascending=False).head(15))
     if not by_fn.empty:
         fig = px.bar(
-            by_fn, x="fn", y="cost_idr_num",
+            by_fn, x="fn", y="cost_idr_num", color="fn", text_auto=True,
             title="Total Biaya per Function (Rp) — Top 15",
-            labels={"fn":"Function", "cost_idr_num":"Total Biaya (Rp)"}
+            labels={"fn":"Function","cost_idr_num":"Total Biaya (Rp)"}
         )
         fig.update_xaxes(categoryorder="total descending")
         st.plotly_chart(fig, use_container_width=True)
 
-# 3) Scatter: gas vs gas price (size=Rp) + label enak
+# 3) Scatter: gas vs gas price (size=Rp)
 sc = df_plot[(df_plot["gas_used_num"] > 0) & (df_plot["gas_price_num"] > 0)]
 if not sc.empty:
     fig = px.scatter(
         sc, x="gas_used_num", y="gas_price_num", size="cost_idr_num", color="network",
         hover_data=["tx_hash","fn","contract"],
         title="Gas Used vs Gas Price (size = Biaya Rp)",
-        labels={"gas_used_num":"Gas Used", "gas_price_num":"Gas Price (wei)", "network":"Jaringan"}
+        labels={"gas_used_num":"Gas Used","gas_price_num":"Gas Price (wei)","network":"Jaringan"}
     )
     st.plotly_chart(fig, use_container_width=True)
 
