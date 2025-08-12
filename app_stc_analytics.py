@@ -397,7 +397,7 @@ page = st.sidebar.radio("Pilih tab", ["Cost (Vision)","Security (SWC)","Performa
 # -------------------------------
 if page == "Cost (Vision)":
     st.title("💰 Cost Analytics — STC Vision")
-    
+
     # --- helper: mapping CSV Vision -> schema standar ---
     def map_csv_cost(df_raw: pd.DataFrame) -> pd.DataFrame:
         m = {
@@ -407,7 +407,7 @@ if page == "Cost (Vision)":
             "Contract":"contract","Function":"function_name","Timestamp":"timestamp","Status":"status"
         }
         df = df_raw.rename(columns=m).copy()
-    
+
         df["project"] = "STC"
         if "timestamp" in df.columns:
             df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce").fillna(pd.Timestamp.utcnow())
@@ -525,7 +525,7 @@ if page == "Cost (Vision)":
         if ing:
             st.success(f"{ing} baris masuk ke vision_costs.")
 
-    # ==== Load & tampilkan data (di luar expander, tapi masih di halaman) ====
+    # ==== Load & tampilkan data (DI LUAR EXPANDER, masih di halaman) ====
     want_load = st.session_state.get("load_existing", False)
     no_new_upload = (st.session_state.get("nd_cost") is None and st.session_state.get("csv_cost") is None)
     if no_new_upload and not want_load:
@@ -555,215 +555,205 @@ if page == "Cost (Vision)":
             use_container_width=True
         )
 
-# ====== Filters & plotting (with explorer links) ======
-UNPARSED_LABEL = "⚠ Unparsed Function"
+        # ====== Filters & plotting (with explorer links) ======
+        UNPARSED_LABEL = "⚠ Unparsed Function"
 
-df_base = df.copy()
-df_base["ts"] = pd.to_datetime(df_base["timestamp"], errors="coerce")
-df_base["fn_raw"] = df_base["function_name"]
-df_base["fn"] = df_base["fn_raw"].fillna(UNPARSED_LABEL).replace({"(unknown)": UNPARSED_LABEL})
-df_base["cost_idr_num"]  = pd.to_numeric(df_base.get("cost_idr", 0), errors="coerce").fillna(0)
-df_base["gas_used_num"]  = pd.to_numeric(df_base.get("gas_used", 0), errors="coerce").fillna(0)
-df_base["gas_price_num"] = pd.to_numeric(df_base.get("gas_price_wei", 0), errors="coerce").fillna(0)
+        df_base = df.copy()
+        df_base["ts"] = pd.to_datetime(df_base["timestamp"], errors="coerce")
+        df_base["fn_raw"] = df_base["function_name"]
+        df_base["fn"] = df_base["fn_raw"].fillna(UNPARSED_LABEL).replace({"(unknown)": UNPARSED_LABEL})
+        df_base["cost_idr_num"]  = pd.to_numeric(df_base.get("cost_idr", 0), errors="coerce").fillna(0)
+        df_base["gas_used_num"]  = pd.to_numeric(df_base.get("gas_used", 0), errors="coerce").fillna(0)
+        df_base["gas_price_num"] = pd.to_numeric(df_base.get("gas_price_wei", 0), errors="coerce").fillna(0)
 
-# --- kecilkan tx hash buat hover ---
-def short_tx(x: str) -> str:
-    x = str(x or "")
-    return x[:6] + "…" + x[-4:] if len(x) > 12 else x
+        def short_tx(x: str) -> str:
+            x = str(x or "")
+            return x[:6] + "…" + x[-4:] if len(x) > 12 else x
 
-# --- mapping explorer (feel free to tambah) ---
-def explorer_tx_url(network: str, tx: str) -> str:
-    base = {
-        "Ethereum": "https://etherscan.io/tx/{}",
-        "Sepolia": "https://sepolia.etherscan.io/tx/{}",
-        "Arbitrum": "https://arbiscan.io/tx/{}",
-        "Arbitrum One": "https://arbiscan.io/tx/{}",
-        "Arbitrum Sepolia": "https://sepolia.arbiscan.io/tx/{}",
-        "Polygon": "https://polygonscan.com/tx/{}",
-        "Polygon Amoy": "https://amoy.polygonscan.com/tx/{}",
-    }.get(str(network), "https://etherscan.io/tx/{}")
-    return base.format(tx)
+        def explorer_tx_url(network: str, tx: str) -> str:
+            base = {
+                "Ethereum": "https://etherscan.io/tx/{}",
+                "Sepolia": "https://sepolia.etherscan.io/tx/{}",
+                "Arbitrum": "https://arbiscan.io/tx/{}",
+                "Arbitrum One": "https://arbiscan.io/tx/{}",
+                "Arbitrum Sepolia": "https://sepolia.arbiscan.io/tx/{}",
+                "Polygon": "https://polygonscan.com/tx/{}",
+                "Polygon Amoy": "https://amoy.polygonscan.com/tx/{}",
+            }.get(str(network), "https://etherscan.io/tx/{}")
+            return base.format(tx)
 
-# --- UI Filters (dengan help) ---
-fc1, fc2, fc3, fc4, fc5, fc6, fc7 = st.columns([1.4,1,1,1,1,1,1])
-with fc1:
-    dmin = df_base["ts"].min(); dmax = df_base["ts"].max()
-    date_range = st.date_input(
-        "Tanggal",
-        value=(None if pd.isna(dmin) else dmin.date(),
-               None if pd.isna(dmax) else dmax.date())
-    )
-with fc2:
-    f_net = st.selectbox("Network", ["(All)"] + sorted(df_base["network"].dropna().astype(str).unique().tolist()), index=0)
-with fc3:
-    f_fn  = st.selectbox(
-        "Function",
-        ["(All)"] + sorted(df_base["fn"].dropna().astype(str).unique().tolist()),
-        index=0,
-        help=f"'{UNPARSED_LABEL}' berarti nama fungsi tidak terdeteksi dari data transaksi/ABI."
-    )
+        fc1, fc2, fc3, fc4, fc5, fc6, fc7 = st.columns([1.4,1,1,1,1,1,1])
+        with fc1:
+            dmin = df_base["ts"].min(); dmax = df_base["ts"].max()
+            date_range = st.date_input(
+                "Tanggal",
+                value=(None if pd.isna(dmin) else dmin.date(),
+                       None if pd.isna(dmax) else dmax.date())
+            )
+        with fc2:
+            f_net = st.selectbox("Network", ["(All)"] + sorted(df_base["network"].dropna().astype(str).unique().tolist()), index=0)
+        with fc3:
+            f_fn  = st.selectbox(
+                "Function",
+                ["(All)"] + sorted(df_base["fn"].dropna().astype(str).unique().tolist()),
+                index=0,
+                help=f"'{UNPARSED_LABEL}' berarti nama fungsi tidak terdeteksi dari data transaksi/ABI."
+            )
+        hide_unknown_default = (f_fn != "(All)")
+        with fc4:
+            hide_unknown = st.checkbox(f"Sembunyikan ({UNPARSED_LABEL})", value=hide_unknown_default)
+        with fc5:
+            do_smooth = st.checkbox("Smoothing (7-pt)", value=False)
+        with fc6:
+            line_log = st.checkbox("Line: log scale (Y)", value=False)
+        with fc7:
+            scatter_scale = st.selectbox("Scatter scale", ["linear","log x","log y","log x & y"], index=0)
 
-hide_unknown_default = (f_fn != "(All)")
-with fc4:
-    hide_unknown = st.checkbox(f"Sembunyikan ({UNPARSED_LABEL})", value=hide_unknown_default,
-                               help="Sembunyikan transaksi yang fungsi kontraknya belum ter-parse.")
-with fc5:
-    do_smooth = st.checkbox("Smoothing (7-pt)", value=False)
-with fc6:
-    line_log = st.checkbox("Line: log scale (Y)", value=False)
-with fc7:
-    scatter_scale = st.selectbox("Scatter scale", ["linear","log x","log y","log x & y"], index=0)
+        # Apply filters
+        df_plot = df_base.copy()
+        if isinstance(date_range, (list, tuple)) and len(date_range) == 2:
+            start, end = date_range
+            if start:
+                df_plot = df_plot[df_plot["ts"] >= pd.Timestamp(start)]
+            if end:
+                df_plot = df_plot[df_plot["ts"] < (pd.Timestamp(end) + pd.Timedelta(days=1))]
+        if f_net != "(All)":
+            df_plot = df_plot[df_plot["network"] == f_net]
+        if f_fn != "(All)":
+            df_plot = df_plot[df_plot["fn"] == f_fn]
+        if hide_unknown or (f_fn != "(All)"):
+            df_plot = df_plot[df_plot["fn"] != UNPARSED_LABEL]
 
-# --- Apply filters ---
-df_plot = df_base.copy()
-if isinstance(date_range, (list, tuple)) and len(date_range) == 2:
-    start, end = date_range
-    if start:
-        df_plot = df_plot[df_plot["ts"] >= pd.Timestamp(start)]
-    if end:
-        df_plot = df_plot[df_plot["ts"] < (pd.Timestamp(end) + pd.Timedelta(days=1))]
-if f_net != "(All)":
-    df_plot = df_plot[df_plot["network"] == f_net]
-if f_fn != "(All)":
-    df_plot = df_plot[df_plot["fn"] == f_fn]
-if hide_unknown or (f_fn != "(All)"):
-    df_plot = df_plot[df_plot["fn"] != UNPARSED_LABEL]
+        # Stats & downloads
+        df_filtered_for_stats = df_base.copy()
+        if isinstance(date_range, (list, tuple)) and len(date_range) == 2:
+            start, end = date_range
+            if start:
+                df_filtered_for_stats = df_filtered_for_stats[df_filtered_for_stats["ts"] >= pd.Timestamp(start)]
+            if end:
+                df_filtered_for_stats = df_filtered_for_stats[df_filtered_for_stats["ts"] < (pd.Timestamp(end) + pd.Timedelta(days=1))]
+        if f_net != "(All)":
+            df_filtered_for_stats = df_filtered_for_stats[df_filtered_for_stats["network"] == f_net]
+        if f_fn != "(All)":
+            df_filtered_for_stats = df_filtered_for_stats[df_filtered_for_stats["fn"] == f_fn]
 
-# --- Stats & downloads (badge + tombol) ---
-# Basis perhitungan % Unparsed = filter tanggal/network/function (belum hide unknown)
-df_filtered_for_stats = df_base.copy()
-if isinstance(date_range, (list, tuple)) and len(date_range) == 2:
-    start, end = date_range
-    if start:
-        df_filtered_for_stats = df_filtered_for_stats[df_filtered_for_stats["ts"] >= pd.Timestamp(start)]
-    if end:
-        df_filtered_for_stats = df_filtered_for_stats[df_filtered_for_stats["ts"] < (pd.Timestamp(end) + pd.Timedelta(days=1))]
-if f_net != "(All)":
-    df_filtered_for_stats = df_filtered_for_stats[df_filtered_for_stats["network"] == f_net]
-if f_fn != "(All)":
-    df_filtered_for_stats = df_filtered_for_stats[df_filtered_for_stats["fn"] == f_fn]
+        total_rows_stats = len(df_filtered_for_stats)
+        unparsed_count = int((df_filtered_for_stats["fn"] == UNPARSED_LABEL).sum())
+        pct_unparsed = (unparsed_count / total_rows_stats * 100.0) if total_rows_stats > 0 else 0.0
 
-total_rows_stats = len(df_filtered_for_stats)
-unparsed_count = int((df_filtered_for_stats["fn"] == UNPARSED_LABEL).sum())
-pct_unparsed = (unparsed_count / total_rows_stats * 100.0) if total_rows_stats > 0 else 0.0
+        b1, b2, b3 = st.columns([2, 1, 1])
+        with b1:
+            st.caption(
+                f"Menampilkan **{len(df_plot):,}** transaksi"
+                + (f" | Network: **{f_net}**"   if f_net != "(All)" else "")
+                + (f" | Function: **{f_fn}**"   if f_fn  != "(All)" else "")
+                + (f" | Unparsed: **{pct_unparsed:.1f}%**" if total_rows_stats > 0 else "")
+            )
+        with b2:
+            helper_cols = ["cost_idr_num", "gas_used_num", "gas_price_num", "ts", "fn", "fn_raw"]
+            st.download_button(
+                "⬇️ Download CSV (Filtered)",
+                data=csv_bytes(df_plot.drop(columns=helper_cols, errors="ignore")),
+                file_name="vision_filtered.csv",
+                mime="text/csv",
+                use_container_width=True,
+            )
+        with b3:
+            df_unparsed_filtered = df_filtered_for_stats[df_filtered_for_stats["fn"] == UNPARSED_LABEL]
+            st.download_button(
+                "⬇️ Unparsed CSV",
+                data=csv_bytes(df_unparsed_filtered.drop(columns=helper_cols, errors="ignore")),
+                file_name="vision_unparsed_filtered.csv",
+                mime="text/csv",
+                use_container_width=True,
+                disabled=df_unparsed_filtered.empty,
+            )
 
-b1, b2, b3 = st.columns([2, 1, 1])
-with b1:
-    st.caption(
-        f"Menampilkan **{len(df_plot):,}** transaksi"
-        + (f" | Network: **{f_net}**"   if f_net != "(All)" else "")
-        + (f" | Function: **{f_fn}**"   if f_fn  != "(All)" else "")
-        + (f" | Unparsed: **{pct_unparsed:.1f}%**" if total_rows_stats > 0 else "")
-    )
-with b2:
-    helper_cols = ["cost_idr_num", "gas_used_num", "gas_price_num", "ts", "fn", "fn_raw"]
-    st.download_button(
-        "⬇️ Download CSV (Filtered)",
-        data=csv_bytes(df_plot.drop(columns=helper_cols, errors="ignore")),
-        file_name="vision_filtered.csv",
-        mime="text/csv",
-        use_container_width=True,
-    )
-with b3:
-    df_unparsed_filtered = df_filtered_for_stats[df_filtered_for_stats["fn"] == UNPARSED_LABEL]
-    st.download_button(
-        "⬇️ Unparsed CSV",
-        data=csv_bytes(df_unparsed_filtered.drop(columns=helper_cols, errors="ignore")),
-        file_name="vision_unparsed_filtered.csv",
-        mime="text/csv",
-        use_container_width=True,
-        disabled=df_unparsed_filtered.empty,
-    )
+        # Charts
+        g1, g2 = st.columns(2)
+        with g1:
+            ts = df_plot.dropna(subset=["ts"]).sort_values("ts")
+            if not ts.empty:
+                y = "cost_idr_num"
+                if do_smooth and len(ts) >= 7:
+                    ts = ts.assign(cost_smooth=ts.groupby("network")[y].transform(lambda s: s.rolling(7, min_periods=1).mean()))
+                    y = "cost_smooth"
+                fig = px.line(
+                    ts, x="ts", y=y, color="network", markers=not do_smooth,
+                    title="Biaya per Transaksi (Rp) vs Waktu",
+                    labels={"ts": "Waktu", y: "Biaya (Rp)", "network": "Jaringan"},
+                )
+                if line_log:
+                    fig.update_yaxes(type="log")
+                st.plotly_chart(fig, use_container_width=True)
 
-# ===== Charts =====
-g1, g2 = st.columns(2)
+        with g2:
+            by_fn = (
+                df_plot.groupby("fn", as_index=False)["cost_idr_num"]
+                .sum()
+                .sort_values("cost_idr_num", ascending=False)
+                .head(15)
+            )
+            if not by_fn.empty:
+                fig = px.bar(
+                    by_fn, x="fn", y="cost_idr_num", color="fn", text_auto=True,
+                    title="Total Biaya per Function (Rp) — Top 15",
+                    labels={"fn": "Function", "cost_idr_num": "Total Biaya (Rp)"},
+                    color_discrete_map={UNPARSED_LABEL: "#F59E0B"},
+                )
+                fig.update_xaxes(categoryorder="total descending")
+                st.plotly_chart(fig, use_container_width=True)
 
-# 1) Line chart
-with g1:
-    ts = df_plot.dropna(subset=["ts"]).sort_values("ts")
-    if not ts.empty:
-        y = "cost_idr_num"
-        if do_smooth and len(ts) >= 7:
-            ts = ts.assign(cost_smooth=ts.groupby("network")[y].transform(lambda s: s.rolling(7, min_periods=1).mean()))
-            y = "cost_smooth"
-        fig = px.line(
-            ts, x="ts", y=y, color="network", markers=not do_smooth,
-            title="Biaya per Transaksi (Rp) vs Waktu",
-            labels={"ts": "Waktu", y: "Biaya (Rp)", "network": "Jaringan"},
-        )
-        if line_log:
-            fig.update_yaxes(type="log")
-        st.plotly_chart(fig, use_container_width=True)
+        sc = df_plot[(df_plot["gas_used_num"] > 0) & (df_plot["gas_price_num"] > 0)].copy()
+        if not sc.empty:
+            sc["tx_short"]     = sc["tx_hash"].astype(str).map(short_tx)
+            sc["cost_str"]     = sc["cost_idr_num"].round().astype(int).map(lambda v: f"{v:,}")
+            sc["gas_used_str"] = sc["gas_used_num"].round().astype(int).map(lambda v: f"{v:,}")
+            sc["gas_price_str"]= sc["gas_price_num"].round().astype(int).map(lambda v: f"{v:,}")
+            sc["explorer_url"] = sc.apply(lambda r: explorer_tx_url(r["network"], r["tx_hash"]), axis=1)
 
-# 2) Bar chart (warna khusus untuk Unparsed)
-with g2:
-    by_fn = (
-        df_plot.groupby("fn", as_index=False)["cost_idr_num"]
-        .sum()
-        .sort_values("cost_idr_num", ascending=False)
-        .head(15)
-    )
-    if not by_fn.empty:
-        fig = px.bar(
-            by_fn, x="fn", y="cost_idr_num", color="fn", text_auto=True,
-            title="Total Biaya per Function (Rp) — Top 15",
-            labels={"fn": "Function", "cost_idr_num": "Total Biaya (Rp)"},
-            color_discrete_map={UNPARSED_LABEL: "#F59E0B"},
-        )
-        fig.update_xaxes(categoryorder="total descending")
-        st.plotly_chart(fig, use_container_width=True)
+            fig = px.scatter(
+                sc, x="gas_used_num", y="gas_price_num", size="cost_idr_num", color="network",
+                title="Gas Used vs Gas Price (size = Biaya Rp)",
+                labels={"gas_used_num": "Gas Used", "gas_price_num": "Gas Price (wei)", "network": "Jaringan"},
+                hover_data=None,
+            )
+            fig.update_traces(
+                text=sc.apply(
+                    lambda r: (
+                        f"Function={r['fn']}"
+                        f"<br>Tx={r['tx_short']}"
+                        f"<br>Gas Used={r['gas_used_str']}"
+                        f"<br>Gas Price (wei)={r['gas_price_str']}"
+                        f"<br>Biaya (Rp)={r['cost_str']}"
+                        f"<br>(Buka detail di tabel Unparsed di bawah)"
+                    ),
+                    axis=1,
+                ),
+                hovertemplate="%{text}",
+            )
+            if scatter_scale in ("log x", "log x & y"):
+                fig.update_xaxes(type="log")
+            if scatter_scale in ("log y", "log x & y"):
+                fig.update_yaxes(type="log")
+            st.plotly_chart(fig, use_container_width=True)
 
-# 3) Scatter (hover rapi + opsi log)
-sc = df_plot[(df_plot["gas_used_num"] > 0) & (df_plot["gas_price_num"] > 0)].copy()
-if not sc.empty:
-    sc["tx_short"]     = sc["tx_hash"].astype(str).map(short_tx)
-    sc["cost_str"]     = sc["cost_idr_num"].round().astype(int).map(lambda v: f"{v:,}")
-    sc["gas_used_str"] = sc["gas_used_num"].round().astype(int).map(lambda v: f"{v:,}")
-    sc["gas_price_str"]= sc["gas_price_num"].round().astype(int).map(lambda v: f"{v:,}")
-    sc["explorer_url"] = sc.apply(lambda r: explorer_tx_url(r["network"], r["tx_hash"]), axis=1)
-
-    fig = px.scatter(
-        sc, x="gas_used_num", y="gas_price_num", size="cost_idr_num", color="network",
-        title="Gas Used vs Gas Price (size = Biaya Rp)",
-        labels={"gas_used_num": "Gas Used", "gas_price_num": "Gas Price (wei)", "network": "Jaringan"},
-        hover_data=None,
-    )
-    fig.update_traces(
-        text=sc.apply(
-            lambda r: (
-                f"Function={r['fn']}"
-                f"<br>Tx={r['tx_short']}"
-                f"<br>Gas Used={r['gas_used_str']}"
-                f"<br>Gas Price (wei)={r['gas_price_str']}"
-                f"<br>Biaya (Rp)={r['cost_str']}"
-                f"<br>(Buka detail di tabel Unparsed di bawah)"
-            ),
-            axis=1,
-        ),
-        hovertemplate="%{text}",
-    )
-    if scatter_scale in ("log x", "log x & y"):
-        fig.update_xaxes(type="log")
-    if scatter_scale in ("log y", "log x & y"):
-        fig.update_yaxes(type="log")
-    st.plotly_chart(fig, use_container_width=True)
-
-# ===== Tabel transaksi 'Unparsed' dengan link explorer =====
-unparsed = df_base[df_base["fn"] == UNPARSED_LABEL].copy()
-if not unparsed.empty:
-    unparsed["Explorer"] = unparsed.apply(lambda r: explorer_tx_url(r["network"], r["tx_hash"]), axis=1)
-    unparsed["Tx (short)"] = unparsed["tx_hash"].map(short_tx)
-    st.markdown("#### 🔎 Unparsed Function — periksa di explorer")
-    st.dataframe(
-        unparsed[["timestamp", "network", "contract", "Tx (short)", "Explorer", "cost_idr"]],
-        use_container_width=True,
-        column_config={
-            "Explorer": st.column_config.LinkColumn("Explorer", display_text="Open"),
-            "cost_idr": st.column_config.NumberColumn("Biaya (Rp)", format="%,d"),
-            "timestamp": st.column_config.DatetimeColumn("Waktu"),
-        },
-    )
-    st.caption("Catatan: Unparsed berarti nama fungsi tidak terdeteksi dari data transaksi. Cek ABI/source di explorer.")
+        # Tabel Unparsed
+        unparsed = df_base[df_base["fn"] == UNPARSED_LABEL].copy()
+        if not unparsed.empty:
+            unparsed["Explorer"] = unparsed.apply(lambda r: explorer_tx_url(r["network"], r["tx_hash"]), axis=1)
+            unparsed["Tx (short)"] = unparsed["tx_hash"].map(short_tx)
+            st.markdown("#### 🔎 Unparsed Function — periksa di explorer")
+            st.dataframe(
+                unparsed[["timestamp", "network", "contract", "Tx (short)", "Explorer", "cost_idr"]],
+                use_container_width=True,
+                column_config={
+                    "Explorer": st.column_config.LinkColumn("Explorer", display_text="Open"),
+                    "cost_idr": st.column_config.NumberColumn("Biaya (Rp)", format="%,d"),
+                    "timestamp": st.column_config.DatetimeColumn("Waktu"),
+                },
+            )
+            st.caption("Catatan: Unparsed berarti nama fungsi tidak terdeteksi dari data transaksi. Cek ABI/source di explorer.")
 
 # -------------------------------
 # SECURITY (SWC)
