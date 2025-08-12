@@ -5,16 +5,10 @@ import pandas as pd
 import plotly.express as px
 from datetime import datetime
 from pathlib import Path
-from modules import get_conn, ensure_db, drop_all, upsert, DB_PATH
-
-# helper lokal (gantikan csv_bytes & read_csv_any agar tidak tergantung modules.py)
-def csv_bytes(df: pd.DataFrame) -> bytes:
-    return df.to_csv(index=False).encode("utf-8")
-
-def read_csv_any(file) -> pd.DataFrame:
-    # bisa diperkaya kalau perlu: sep=';', encoding dsb.
-    return pd.read_csv(file)
-
+from core_db import (
+    DB_PATH, get_conn, ensure_db, drop_all, upsert,
+    csv_bytes, read_csv_any
+)
 import hashlib
 
 def render_tourism_sidebar():
