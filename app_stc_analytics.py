@@ -6,6 +6,7 @@ import streamlit as st
 from datetime import datetime
 from pathlib import Path
 import hashlib
+from tourism_pages import render_tourism_sidebar
 
 st.set_page_config(page_title="STC Analytics", layout="wide")
 
