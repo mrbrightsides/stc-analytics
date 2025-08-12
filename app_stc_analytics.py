@@ -1069,100 +1069,100 @@ elif page == "Performance (Bench)":
     con.close()
 
     if runs_df.empty:
-    st.info("Belum ada data benchmark.")
+        st.info("Belum ada data benchmark.")
     else:
-    # ===== base + helper cols =====
-    base = runs_df.copy()
-    base["ts"]   = pd.to_datetime(base["timestamp"], errors="coerce")
-    base["succ"] = pd.to_numeric(base.get("success_rate", 0), errors="coerce").fillna(0.0)
+        # ===== base + helper cols =====
+        base = runs_df.copy()
+        base["ts"]   = pd.to_datetime(base["timestamp"], errors="coerce")
+        base["succ"] = pd.to_numeric(base.get("success_rate", 0), errors="coerce").fillna(0.0)
 
-    # ===== filters (tanggal + network + scenario + function) =====
-    fc1, fc2, fc3, fc4 = st.columns([1.4,1,1,1])
-    with fc1:
-        dmin, dmax = base["ts"].min(), base["ts"].max()
-        date_range = st.date_input(
-            "Tanggal",
-            value=(None if pd.isna(dmin) else dmin.date(),
-                   None if pd.isna(dmax) else dmax.date())
-        )
-    with fc2:
-        nets = ["(All)"] + sorted(base["network"].dropna().astype(str).unique().tolist())
-        f_net = st.selectbox("Network", nets, index=0)
-    with fc3:
-        scns = ["(All)"] + sorted(base["scenario"].dropna().astype(str).unique().tolist())
-        f_scn = st.selectbox("Scenario", scns, index=0)
-    with fc4:
-        f_fn  = st.selectbox(
-            "Function",
-            ["(All)"] + sorted(base["function_name"].dropna().astype(str).unique().tolist()),
-            index=0
-        )
+        # ===== filters (tanggal + network + scenario + function) =====
+        fc1, fc2, fc3, fc4 = st.columns([1.4,1,1,1])
+        with fc1:
+            dmin, dmax = base["ts"].min(), base["ts"].max()
+            date_range = st.date_input(
+                "Tanggal",
+                value=(None if pd.isna(dmin) else dmin.date(),
+                       None if pd.isna(dmax) else dmax.date())
+            )
+        with fc2:
+            nets = ["(All)"] + sorted(base["network"].dropna().astype(str).unique().tolist())
+            f_net = st.selectbox("Network", nets, index=0)
+        with fc3:
+            scns = ["(All)"] + sorted(base["scenario"].dropna().astype(str).unique().tolist())
+            f_scn = st.selectbox("Scenario", scns, index=0)
+        with fc4:
+            f_fn  = st.selectbox(
+                "Function",
+                ["(All)"] + sorted(base["function_name"].dropna().astype(str).unique().tolist()),
+                index=0
+            )
 
-    # apply filters
-    plot = base.copy()
-    if isinstance(date_range, (list, tuple)) and len(date_range) == 2:
-        start, end = date_range
-        if start: plot = plot[plot["ts"] >= pd.Timestamp(start)]
-        if end:   plot = plot[plot["ts"] < (pd.Timestamp(end) + pd.Timedelta(days=1))]
-    if f_net != "(All)":
-        plot = plot[plot["network"] == f_net]
-    if f_scn != "(All)":
-        plot = plot[plot["scenario"] == f_scn]
-    if f_fn  != "(All)":
-        plot = plot[plot["function_name"] == f_fn]
+        # apply filters
+        plot = base.copy()
+        if isinstance(date_range, (list, tuple)) and len(date_range) == 2:
+            start, end = date_range
+            if start: plot = plot[plot["ts"] >= pd.Timestamp(start)]
+            if end:   plot = plot[plot["ts"] < (pd.Timestamp(end) + pd.Timedelta(days=1))]
+        if f_net != "(All)":
+            plot = plot[plot["network"] == f_net]
+        if f_scn != "(All)":
+            plot = plot[plot["scenario"] == f_scn]
+        if f_fn  != "(All)":
+            plot = plot[plot["function_name"] == f_fn]
 
-    # ===== badge + download (kaya Vision) =====
-    b1, b2 = st.columns([2,1])
-    with b1:
-        avg_sr = (plot["succ"].mean() * 100) if len(plot) else 0.0
-        st.caption(
-            f"Menampilkan **{len(plot):,}** runs"
-            + (f" | Network: **{f_net}**"   if f_net != "(All)" else "")
-            + (f" | Scenario: **{f_scn}**"  if f_scn != "(All)" else "")
-            + (f" | Function: **{f_fn}**"   if f_fn != "(All)" else "")
-            + f" | Avg Success Rate: **{avg_sr:.1f}%**"
-        )
-    with b2:
-        st.download_button(
-            "⬇️ Download CSV (Filtered)",
-            data=csv_bytes(plot.drop(columns=["ts","succ"], errors="ignore")),
-            file_name="bench_runs_filtered.csv",
-            mime="text/csv",
-            use_container_width=True
-        )
+        # ===== badge + download (kaya Vision) =====
+        b1, b2 = st.columns([2,1])
+        with b1:
+            avg_sr = (plot["succ"].mean() * 100) if len(plot) else 0.0
+            st.caption(
+                f"Menampilkan **{len(plot):,}** runs"
+                + (f" | Network: **{f_net}**"   if f_net != "(All)" else "")
+                + (f" | Scenario: **{f_scn}**"  if f_scn != "(All)" else "")
+                + (f" | Function: **{f_fn}**"   if f_fn != "(All)" else "")
+                + f" | Avg Success Rate: **{avg_sr:.1f}%**"
+            )
+        with b2:
+            st.download_button(
+                "⬇️ Download CSV (Filtered)",
+                data=csv_bytes(plot.drop(columns=["ts","succ"], errors="ignore")),
+                file_name="bench_runs_filtered.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
 
-    # ===== metrics =====
-    k1, k2, k3 = st.columns(3)
-    k1.metric("TPS Peak", f"{plot['tps_peak'].max():,.2f}" if not plot.empty else "0")
-    k2.metric("Latency p95 (ms)", f"{plot['p95_ms'].mean():,.0f}" if not plot.empty else "0")
-    k3.metric("Success Rate", f"{avg_sr:.1f}%")
+        # ===== metrics =====
+        k1, k2, k3 = st.columns(3)
+        k1.metric("TPS Peak", f"{plot['tps_peak'].max():,.2f}" if not plot.empty else "0")
+        k2.metric("Latency p95 (ms)", f"{plot['p95_ms'].mean():,.0f}" if not plot.empty else "0")
+        k3.metric("Success Rate", f"{avg_sr:.1f}%")
 
-    # ===== charts =====
-    c1, c2 = st.columns(2)
-    with c1:
-        fig = px.line(
-            plot.sort_values("concurrency"),
-            x="concurrency", y="tps_avg", color="scenario",
-            markers=True, title="TPS vs Concurrency",
-            labels={"concurrency":"Concurrency","tps_avg":"TPS Avg","scenario":"Scenario"}
-        )
-        st.plotly_chart(fig, use_container_width=True)
-    with c2:
-        lat = plot.melt(
-            id_vars=["concurrency","scenario"],
-            value_vars=["p50_ms","p95_ms"],
-            var_name="metric", value_name="latency_ms"
-        )
-        fig = px.line(
-            lat.sort_values("concurrency"),
-            x="concurrency", y="latency_ms", color="metric",
-            markers=True, title="Latency (p50/p95) vs Concurrency",
-            labels={"concurrency":"Concurrency","latency_ms":"Latency (ms)","metric":"Metric"}
-        )
-        st.plotly_chart(fig, use_container_width=True)
+        # ===== charts =====
+        c1, c2 = st.columns(2)
+        with c1:
+            fig = px.line(
+                plot.sort_values("concurrency"),
+                x="concurrency", y="tps_avg", color="scenario",
+                markers=True, title="TPS vs Concurrency",
+                labels={"concurrency":"Concurrency","tps_avg":"TPS Avg","scenario":"Scenario"}
+            )
+            st.plotly_chart(fig, use_container_width=True)
+        with c2:
+            lat = plot.melt(
+                id_vars=["concurrency","scenario"],
+                value_vars=["p50_ms","p95_ms"],
+                var_name="metric", value_name="latency_ms"
+            )
+            fig = px.line(
+                lat.sort_values("concurrency"),
+                x="concurrency", y="latency_ms", color="metric",
+                markers=True, title="Latency (p50/p95) vs Concurrency",
+                labels={"concurrency":"Concurrency","latency_ms":"Latency (ms)","metric":"Metric"}
+            )
+            st.plotly_chart(fig, use_container_width=True)
 
-    # ===== table =====
-    st.markdown("### Detail Runs")
-    st.dataframe(plot, use_container_width=True)
+        # ===== table =====
+        st.markdown("### Detail Runs")
+        st.dataframe(plot, use_container_width=True)
 
         show_help("bench")
