@@ -9,9 +9,19 @@ import hashlib
 
 st.set_page_config(page_title="STC Analytics", layout="wide")
 
-# ===== Top Navbar: Modules =====
+# ===== Top Navbar: Modules & Tools =====
+MODULES = ["Tourism", "Finance (DeFi)", "NFT/Token", "Supply Chain", "Custom Monitor"]
+module_choice = st.radio("Modules", MODULES, horizontal=True, key="module_choice")
+
+st.divider()
+
+TOOLS = ["Scan", "Test", "Contract"]
+tool_choice = st.radio("Tools", TOOLS, horizontal=True, key="tool_choice")
+
+# ===== Modules =====
 if module_choice == "Tourism":
-    render_tourism_sidebar()  # <<— sidebar Tourism
+    render_tourism_sidebar()  # sidebar khusus Tourism
+
     t1, t2, t3 = st.tabs(["Cost (Vision)", "Security (SWC)", "Performance (Bench)"])
     with t1: render_cost_page()
     with t2: render_swc_page()
@@ -19,6 +29,17 @@ if module_choice == "Tourism":
 else:
     st.markdown(f"## Module: {module_choice}")
     st.markdown("<h1 style='text-align:center;color:gray;'>COMING SOON</h1>", unsafe_allow_html=True)
+
+st.divider()
+
+# ===== Tools =====
+if tool_choice == "Scan":
+    scan_tool()
+elif tool_choice == "Test":
+    test_tool()
+else:
+    contract_tool()
+
 
 # ===== Render Module Area =====
 if module_choice == "Tourism":
