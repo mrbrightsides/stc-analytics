@@ -846,6 +846,26 @@ if page == "Cost (Vision)":
 
     pass
 
+def render_swc_page():
+# -------------------------------
+# Sidebar
+# -------------------------------
+st.sidebar.title("🧭 STC Analytics")
+with st.sidebar.expander("⚙️ Data control", expanded=True):
+    load_existing = st.checkbox("Load existing stored data", value=False, key="load_existing")
+    if st.button("🧹 Clear all DuckDB data", use_container_width=True):
+        con = duckdb.connect(DB_PATH)
+        for t in ["vision_costs","swc_findings","bench_runs","bench_tx"]:
+            con.execute(f"DELETE FROM {t};")
+        con.close()
+        st.success("Database cleared. Siap upload data baru.")
+    if st.button("🧨 Reset schema (DROP & CREATE)", use_container_width=True):
+        drop_all()
+        ensure_db()
+        st.success("Schema di-reset. Tabel dibuat ulang dengan struktur terbaru.")
+
+page = st.sidebar.radio("Pilih tab", ["Cost (Vision)","Security (SWC)","Performance (Bench)"], index=0)
+
 # -------------------------------
 # SECURITY (SWC)
 # -------------------------------
@@ -1062,6 +1082,27 @@ elif page == "Security (SWC)":
                             st.markdown(f"- {b}")
                 else:
                     st.info("SWC ini belum ada di KB JSON.")
+    pass
+
+def render_bench_page():
+# -------------------------------
+# Sidebar
+# -------------------------------
+st.sidebar.title("🧭 STC Analytics")
+with st.sidebar.expander("⚙️ Data control", expanded=True):
+    load_existing = st.checkbox("Load existing stored data", value=False, key="load_existing")
+    if st.button("🧹 Clear all DuckDB data", use_container_width=True):
+        con = duckdb.connect(DB_PATH)
+        for t in ["vision_costs","swc_findings","bench_runs","bench_tx"]:
+            con.execute(f"DELETE FROM {t};")
+        con.close()
+        st.success("Database cleared. Siap upload data baru.")
+    if st.button("🧨 Reset schema (DROP & CREATE)", use_container_width=True):
+        drop_all()
+        ensure_db()
+        st.success("Schema di-reset. Tabel dibuat ulang dengan struktur terbaru.")
+
+page = st.sidebar.radio("Pilih tab", ["Cost (Vision)","Security (SWC)","Performance (Bench)"], index=0)
 
 # -------------------------------
 # PERFORMANCE (Bench)
@@ -1250,3 +1291,4 @@ elif page == "Performance (Bench)":
         st.dataframe(plot, use_container_width=True)
 
         show_help("bench")
+    pass
