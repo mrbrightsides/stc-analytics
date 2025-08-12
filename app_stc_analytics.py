@@ -5,6 +5,7 @@ import plotly.express as px
 import streamlit as st
 from datetime import datetime
 from pathlib import Path
+from tourism_pages import render_cost_page, render_swc_page, render_bench_page
 import hashlib
 
 st.set_page_config(page_title="STC Analytics", layout="wide")
