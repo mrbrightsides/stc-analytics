@@ -6,6 +6,40 @@ import streamlit as st
 from datetime import datetime
 from pathlib import Path
 import hashlib
+from modules import (
+    module_tourism, module_finance, module_nft,
+    module_supplychain, module_custom
+)
+from tools_scan import scan_tool
+from tools_test import test_tool
+from tools_contract import contract_tool
+from sidebar_router import sidebar_nav
+
+st.set_page_config(page_title="STC Analytics", layout="wide")
+
+module, tool = sidebar_nav()
+
+# ===== Modules =====
+if module == "Tourism":
+    module_tourism(render_cost=render_cost_page, render_swc=render_swc_page, render_bench=render_bench_page)
+elif module == "Finance (DeFi)":
+    module_finance()
+elif module == "NFT/Token":
+    module_nft()
+elif module == "Supply Chain":
+    module_supplychain()
+else:
+    module_custom()
+
+st.divider()
+
+# ===== Tools =====
+if tool == "Scan":
+    scan_tool()
+elif tool == "Test":
+    test_tool()
+else:
+    contract_tool()
 
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 
