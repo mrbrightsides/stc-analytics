@@ -448,6 +448,37 @@ if page == "Cost (Vision)":
         with right:
             cs = st.file_uploader("Upload CSV (dari STC-Vision)", type=None, key="csv_cost")
 
+        # === Templates / samples ===
+        tpl_cost = pd.DataFrame(columns=[
+            "Network","Tx Hash","From","To","Block","Gas Used","Gas Price (Gwei)",
+            "Estimated Fee (ETH)","Estimated Fee (Rp)","Contract","Function","Timestamp","Status"
+        ]).head(0)
+        c1, c2 = st.columns(2)
+        with c1:
+            st.download_button(
+                "⬇️ Template CSV (Vision)",
+                data=csv_bytes(tpl_cost),
+                file_name="vision_template.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
+        with c2:
+            vision_sample_rows = [{
+                "id":"demo::bookHotel","project":"STC","network":"Sepolia",
+                "timestamp":"2025-08-12T09:45:00Z","tx_hash":"0xabc123...",
+                "contract":"SmartReservation","function_name":"bookHotel",
+                "block_number":123456,"gas_used":21000,"gas_price_wei":22500000000,
+                "cost_eth":0.0005,"cost_idr":15000,"meta_json":"{\"status\":\"Success\"}"
+            }]
+            ndjson_bytes = ("\n".join(json.dumps(r) for r in vision_sample_rows)).encode("utf-8")
+            st.download_button(
+                "⬇️ Contoh NDJSON (Vision)",
+                data=ndjson_bytes,
+                file_name="vision_sample.ndjson",
+                mime="application/x-ndjson",
+                use_container_width=True
+            )
+
         # === NDJSON ingest ===
         if nd is not None:
             rows = []
@@ -461,10 +492,8 @@ if page == "Cost (Vision)":
 
             if rows:
                 d = pd.DataFrame(rows)
-
                 if "id" not in d.columns:
                     d["id"] = d.apply(lambda r: f"{r.get('tx_hash','')}::{(r.get('function_name') or '')}".strip(), axis=1)
-
                 if "meta_json" not in d.columns:
                     if "meta" in d.columns:
                         d["meta_json"] = d["meta"].apply(lambda x: json.dumps(x) if isinstance(x, dict) else (x if x else "{}"))
@@ -496,7 +525,7 @@ if page == "Cost (Vision)":
         if ing:
             st.success(f"{ing} baris masuk ke vision_costs.")
 
-    # ==== Load & tampilkan data (di luar expander) ====
+    # ==== Load & tampilkan data (di luar expander, tapi masih di halaman) ====
     want_load = st.session_state.get("load_existing", False)
     no_new_upload = (st.session_state.get("nd_cost") is None and st.session_state.get("csv_cost") is None)
     if no_new_upload and not want_load:
@@ -510,6 +539,7 @@ if page == "Cost (Vision)":
     if df.empty:
         st.info("Belum ada data cost.")
     else:
+        # Ringkasan
         c1, c2, c3 = st.columns(3)
         c1.metric("Total Rows", f"{len(df):,}")
         c2.metric("Unique Tx", f"{df['tx_hash'].nunique():,}" if 'tx_hash' in df else "—")
@@ -524,6 +554,36 @@ if page == "Cost (Vision)":
             mime="text/csv",
             use_container_width=True
         )
+
+        # ===== Grafik =====
+        df["_cost_idr"]  = pd.to_numeric(df.get("cost_idr", 0), errors="coerce").fillna(0)
+        df["_gas_used"]  = pd.to_numeric(df.get("gas_used", 0), errors="coerce").fillna(0)
+        df["_gas_price"] = pd.to_numeric(df.get("gas_price_wei", 0), errors="coerce").fillna(0)
+        df["_timestamp"] = pd.to_datetime(df.get("timestamp"), errors="coerce")
+
+        g1, g2 = st.columns(2)
+
+        with g1:
+            ts = df.dropna(subset=["_timestamp"]).sort_values("_timestamp")
+            if not ts.empty:
+                fig = px.line(ts, x="_timestamp", y="_cost_idr", color="network",
+                              markers=True, title="Biaya per Transaksi (Rp) vs Waktu")
+                st.plotly_chart(fig, use_container_width=True)
+
+        with g2:
+            by_fn = df.groupby(df["function_name"].fillna("(unknown)"))["_cost_idr"].sum().reset_index()
+            if not by_fn.empty:
+                fig = px.bar(by_fn, x="function_name", y="_cost_idr", title="Total Biaya per Function (Rp)")
+                st.plotly_chart(fig, use_container_width=True)
+
+        sc = df[(df["_gas_used"] > 0) & (df["_gas_price"] > 0)]
+        if not sc.empty:
+            fig = px.scatter(
+                sc, x="_gas_used", y="_gas_price", size="_cost_idr", color="network",
+                hover_data=["tx_hash","function_name","contract"],
+                title="Gas Used vs Gas Price (size=Rp)"
+            )
+            st.plotly_chart(fig, use_container_width=True)
 
 # -------------------------------
 # SECURITY (SWC)
