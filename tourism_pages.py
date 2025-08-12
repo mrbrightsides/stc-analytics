@@ -1,5 +1,11 @@
 import streamlit as st, duckdb, pandas as pd, json, re
-# import juga helpermu: csv_bytes, read_csv_any, get_conn, ensure_db, drop_all, upsert, DB_PATH, plotly.express as px, ...
+import os, json, re, io
+import duckdb
+import pandas as pd
+import plotly.express as px
+from datetime import datetime
+from pathlib import Path
+import hashlib
 
 def render_tourism_sidebar():
     st.sidebar.title("🧭 STC Analytics")
