@@ -542,6 +542,12 @@ if page == "Cost (Vision)":
                 mime="application/x-ndjson",
                 use_container_width=True
             )
+            st.caption("""
+💡 Template CSV adalah file kosong berisi kolom sesuai format sistem. 
+Isi dengan data Anda sendiri. Untuk contoh berisi data, gunakan 
+[Contoh NDJSON (Vision)](https://github.com/mrbrightsides/stc-analytics/tree/main/dummy) atau file dummy berikut 
+untuk melihat grafik secara cepat.
+""")
 
         # === NDJSON ingest ===
         if nd is not None:
