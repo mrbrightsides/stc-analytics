@@ -59,7 +59,13 @@ def sample_templates():
 
 if st.sidebar.button("🔄 Reload templates (clear cache)"):
     st.cache_data.clear()
-    st.experimental_rerun()
+    try:
+        st.rerun()
+    except Exception:
+        try:
+            st.experimental_rerun()
+        except Exception:
+            pass
 
 # --- NDJSON reader helper ---
 def read_ndjson(uploaded):
