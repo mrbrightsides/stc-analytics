@@ -14,14 +14,21 @@ from tools_scan import scan_tool
 from tools_test import test_tool
 from tools_contract import contract_tool
 
+for k in ("tool_choice", "module_choice"):
+    if k in st.session_state:
+        del st.session_state[k]
+
 st.set_page_config(page_title="STC Analytics", layout="wide")
 
-# Navbar
-MODULES = ["Tourism","Finance (DeFi)","NFT/Token","Supply Chain","Custom Monitor"]
-module_choice = st.radio("Modules", MODULES, horizontal=True, key="module_choice")
+# ===== Top Navbar: Modules & Tools =====
+MODULES = ["Tourism", "Finance (DeFi)", "NFT/Token", "Supply Chain", "Custom Monitor"]
+module_choice = st.radio("Modules", MODULES, horizontal=True, key="modules_nav_main")
+
 st.divider()
-TOOLS = ["Scan","Test","Contract"]
-tool_choice = st.radio("Tools", TOOLS, horizontal=True, key="tool_choice")
+
+TOOLS = ["Scan", "Test", "Contract"]
+# pakai key berbeda supaya tidak tabrakan
+tool_choice = st.radio("Tools", TOOLS, horizontal=True, key=f"tools_nav_main_{module_choice}")
 
 # Modules
 if module_choice == "Tourism":
