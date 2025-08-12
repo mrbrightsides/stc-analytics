@@ -863,81 +863,121 @@ elif page == "Security (SWC)":
         if ing:
             st.success(f"{ing} temuan masuk ke swc_findings.")
 
-    # ===== DI LUAR EXPANDER (tapi masih di halaman SWC) =====
-    want_load = st.session_state.get("load_existing", False)
-    no_new_upload = (st.session_state.get("swc_csv") is None and st.session_state.get("swc_nd") is None)
-    if no_new_upload and not want_load:
-        st.info("Belum ada data temuan SWC untuk sesi ini. Upload CSV/NDJSON atau aktifkan ‘Load existing stored data’.")
-        st.stop()
+   # ===== DI LUAR EXPANDER (tapi masih di halaman SWC) =====
+want_load = st.session_state.get("load_existing", False)
+no_new_upload = (st.session_state.get("swc_csv") is None and st.session_state.get("swc_nd") is None)
+if no_new_upload and not want_load:
+    st.info("Belum ada data temuan SWC untuk sesi ini. Upload CSV/NDJSON atau aktifkan ‘Load existing stored data’.")
+    st.stop()
 
-    # --- Load & tampilkan ---
-    con = get_conn()
-    df = con.execute("SELECT * FROM swc_findings ORDER BY timestamp DESC").df()
-    con.close()
+# --- Load data ---
+con = get_conn()
+swc_df = con.execute("SELECT * FROM swc_findings ORDER BY timestamp DESC").df()
+con.close()
 
-    if df.empty:
-        st.info("Belum ada data temuan SWC.")
-    else:
-        cols = st.columns(3)
-        nets = ["(All)"] + sorted(df["network"].dropna().astype(str).unique().tolist())
-        sevs = ["(All)"] + sorted(df["severity"].dropna().astype(str).unique().tolist())
-        with cols[0]: f_net = st.selectbox("Network", nets, index=0)
-        with cols[1]: f_sev = st.selectbox("Severity", sevs, index=0)
-        with cols[2]: f_swc = st.text_input("Cari SWC-ID (mis. SWC-107)", "")
+if swc_df.empty:
+    st.info("Belum ada data temuan SWC.")
+else:
+    # ====== base + helpers ======
+    swc_base = swc_df.copy()
+    swc_base["ts"]  = pd.to_datetime(swc_base["timestamp"], errors="coerce")
+    swc_base["sev"] = swc_base["severity"].fillna("(unknown)")
+    swc_base["conf_num"] = pd.to_numeric(swc_base.get("confidence", 0), errors="coerce").fillna(0.0)
 
-        if f_net != "(All)":
-            df = df[df["network"] == f_net]
-        if f_sev != "(All)":
-            df = df[df["severity"] == f_sev]
-        if f_swc.strip():
-            df = df[df["swc_id"].astype(str).str.contains(f_swc.strip(), case=False, na=False)]
+    # ====== filters (mirip Vision) ======
+    fc1, fc2, fc3 = st.columns([1.4, 1, 1])
+    with fc1:
+        dmin, dmax = swc_base["ts"].min(), swc_base["ts"].max()
+        date_range = st.date_input("Tanggal",
+            value=(None if pd.isna(dmin) else dmin.date(),
+                   None if pd.isna(dmax) else dmax.date()))
+    with fc2:
+        nets = ["(All)"] + sorted(swc_base["network"].dropna().astype(str).unique().tolist())
+        f_net = st.selectbox("Network", nets, index=0)
+    with fc3:
+        sevs = ["(All)"] + sorted(swc_base["sev"].dropna().astype(str).unique().tolist())
+        f_sev = st.selectbox("Severity", sevs, index=0)
 
-        total = len(df); high = (df["severity"].astype(str).str.lower() == "high").sum()
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Total Findings", f"{total:,}")
-        c2.metric("High Severity", f"{high:,}")
-        c3.metric("Unique SWC IDs", f"{df['swc_id'].nunique():,}")
+    # apply filters
+    swc_plot = swc_base.copy()
+    if isinstance(date_range, (list, tuple)) and len(date_range) == 2:
+        start, end = date_range
+        if start: swc_plot = swc_plot[swc_plot["ts"] >= pd.Timestamp(start)]
+        if end:   swc_plot = swc_plot[swc_plot["ts"] < (pd.Timestamp(end) + pd.Timedelta(days=1))]
+    if f_net != "(All)":
+        swc_plot = swc_plot[swc_plot["network"] == f_net]
+    if f_sev != "(All)":
+        swc_plot = swc_plot[swc_plot["sev"] == f_sev]
 
-        pivot = df.pivot_table(index="swc_id", columns="severity", values="finding_id",
-                               aggfunc="count", fill_value=0)
-        if not pivot.empty:
-            fig = px.imshow(pivot, text_auto=True, aspect="auto", title="SWC-ID × Severity (count)")
-            st.plotly_chart(fig, use_container_width=True)
-
-        st.markdown("### Detail Temuan")
-        detail_cols = ["timestamp","network","contract","file","line_start","swc_id","title",
-                       "severity","confidence","status","remediation"]
-        st.dataframe(df[detail_cols], use_container_width=True)
+    # ====== badge + download (kaya Vision) ======
+    b1, b2 = st.columns([2,1])
+    with b1:
+        st.caption(
+            f"Menampilkan **{len(swc_plot):,}** temuan"
+            + (f" | Network: **{f_net}**" if f_net != "(All)" else "")
+            + (f" | Severity: **{f_sev}**" if f_sev != "(All)" else "")
+        )
+    with b2:
         st.download_button(
-            "⬇️ Download hasil filter (CSV)",
-            data=csv_bytes(df[detail_cols]),
-            file_name="swc_filtered.csv", mime="text/csv", use_container_width=True
+            "⬇️ Download CSV (Filtered)",
+            data=csv_bytes(swc_plot.drop(columns=["ts","sev","conf_num"], errors="ignore")),
+            file_name="swc_findings_filtered.csv",
+            mime="text/csv",
+            use_container_width=True
         )
 
-        # --- SWC Knowledge ---
-        st.markdown("### 🔎 SWC Knowledge")
-        kb = load_swc_kb()
-        if not kb:
-            st.warning("SWC KB JSON belum ditemukan. Letakkan file **swc_kb.json** di direktori app atau set env `SWC_KB_PATH`.")
+    # ====== metrics ======
+    total = len(swc_plot)
+    high  = (swc_plot["sev"].astype(str).str.lower() == "high").sum()
+    uniq  = swc_plot["swc_id"].nunique()
+    m1,m2,m3 = st.columns(3)
+    m1.metric("Total Findings", f"{total:,}")
+    m2.metric("High Severity", f"{high:,}")
+    m3.metric("Unique SWC IDs", f"{uniq:,}")
+
+    # ====== heatmap ======
+    pivot = swc_plot.pivot_table(index="swc_id", columns="sev", values="finding_id",
+                                 aggfunc="count", fill_value=0)
+    if not pivot.empty:
+        fig = px.imshow(pivot, text_auto=True, aspect="auto", title="SWC-ID × Severity (count)")
+        st.plotly_chart(fig, use_container_width=True)
+
+    # ====== table (gaya Vision) ======
+    st.markdown("### Detail Temuan")
+    detail_cols = ["timestamp","network","contract","file","line_start","swc_id","title",
+                   "severity","confidence","status","remediation"]
+    st.dataframe(swc_plot[detail_cols], use_container_width=True)
+    st.download_button(
+        "⬇️ Download tabel di atas (CSV)",
+        data=csv_bytes(swc_plot[detail_cols]),
+        file_name="swc_table_filtered.csv",
+        mime="text/csv",
+        use_container_width=True
+    )
+
+    # ====== SWC Knowledge ======
+    st.markdown("### 🔎 SWC Knowledge")
+    kb = load_swc_kb()
+    if not kb:
+        st.warning("SWC KB JSON belum ditemukan. Letakkan file **swc_kb.json** di direktori app atau set env `SWC_KB_PATH`.")
+    else:
+        available_ids = sorted(swc_plot["swc_id"].dropna().astype(str).unique().tolist())
+        if not available_ids:
+            st.info("Tidak ada SWC-ID pada data saat ini.")
         else:
-            available_ids = sorted(df["swc_id"].dropna().astype(str).unique().tolist())
-            if not available_ids:
-                st.info("Tidak ada SWC-ID pada data saat ini.")
+            sel = st.selectbox("Pilih SWC-ID untuk penjelasan", available_ids, index=0)
+            entry = kb.get(sel)
+            if entry:
+                st.subheader(f"{sel} — {entry.get('title','')}")
+                desc = entry.get("description","").strip()
+                if desc: st.markdown(desc)
+                mit = entry.get("mitigation","").strip()
+                if mit:
+                    st.markdown("**Mitigation:**")
+                    for b in [x.strip() for x in re.split(r"[\n;]", mit) if x.strip()]:
+                        st.markdown(f"- {b}")
             else:
-                sel = st.selectbox("Pilih SWC-ID untuk penjelasan", available_ids, index=0)
-                entry = kb.get(sel)
-                if entry:
-                    st.subheader(f"{sel} — {entry.get('title','')}")
-                    desc = entry.get("description","").strip()
-                    if desc:
-                        st.markdown(desc)
-                    mit = entry.get("mitigation","").strip()
-                    if mit:
-                        st.markdown("**Mitigation:**")
-                        for b in [x.strip() for x in re.split(r"[\n;]", mit) if x.strip()]:
-                            st.markdown(f"- {b}")
-                else:
-                    st.info("SWC ini belum ada di KB JSON.")
+                st.info("SWC ini belum ada di KB JSON.")
 
 # -------------------------------
 # PERFORMANCE (Bench)
