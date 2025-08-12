@@ -57,18 +57,6 @@ def sample_templates():
     )
     return tpl_cost, tpl_swc, tpl_runs, tpl_tx
 
-if st.sidebar.button("🔄 Reload templates (clear cache)"):
-    st.cache_data.clear()
-    import time
-    time.sleep(0.2)  # jeda kecil biar file system settle
-    try:
-        st.rerun()
-    except Exception:
-        try:
-            st.experimental_rerun()
-        except Exception:
-            pass
-
 # --- NDJSON reader helper ---
 def read_ndjson(uploaded):
     """Baca NDJSON dari st.file_uploader atau file-like object."""
