@@ -248,7 +248,7 @@ Satu tempat buat pantau **biaya gas (Vision)**, **temuan keamanan (SWC)**, dan *
 3. Gunakan **filter** untuk eksplorasi + buka **SWC Knowledge** buat penjelasan tiap _SWC-ID_.  
 4. **Export** hasil filter via tombol **Download CSV**.
 5. 💡 Template CSV adalah file kosong berisi kolom sesuai format sistem. Isi dengan data Anda sendiri. Untuk contoh berisi data, gunakan 
-[Contoh NDJSON (Vision)](https://github.com/mrbrightsides/stc-analytics/tree/main/dummy) atau file dummy berikut untuk melihat grafik secara cepat.
+[contoh file dummy](https://github.com/mrbrightsides/stc-analytics/tree/main/dummy) untuk melihat grafik secara cepat.
 
 > ℹ️ Catatan: WebApp ini hanya sebagai **reader/analytics**. Analisis kelemahan detail tetap mengacu ke referensi SWC & tool audit resmi.
 
