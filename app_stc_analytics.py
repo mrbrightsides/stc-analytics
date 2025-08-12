@@ -627,12 +627,52 @@ if f_fn != "(All)":
 if hide_unknown or (f_fn != "(All)"):
     df_plot = df_plot[df_plot["fn"] != UNPARSED_LABEL]
 
-# --- Badge jumlah data ---
-st.caption(
-    f"Menampilkan **{len(df_plot):,}** transaksi"
-    + (f" | Network: **{f_net}**" if f_net != "(All)" else "")
-    + (f" | Function: **{f_fn}**" if f_fn != "(All)" else "")
-)
+# --- Stats & downloads ---
+# df_filtered_for_stats: setelah filter Tanggal + Network + Function (TAPI belum hide unparsed)
+df_filtered_for_stats = df_base.copy()
+if isinstance(date_range, (list, tuple)) and len(date_range) == 2:
+    start, end = date_range
+    if start: df_filtered_for_stats = df_filtered_for_stats[df_filtered_for_stats["ts"] >= pd.Timestamp(start)]
+    if end:   df_filtered_for_stats = df_filtered_for_stats[df_filtered_for_stats["ts"] < (pd.Timestamp(end) + pd.Timedelta(days=1))]
+if f_net != "(All)":
+    df_filtered_for_stats = df_filtered_for_stats[df_filtered_for_stats["network"] == f_net]
+if f_fn != "(All)":
+    df_filtered_for_stats = df_filtered_for_stats[df_filtered_for_stats["fn"] == f_fn]
+
+# Hitung % Unparsed pada data terfilter (sebelum hide)
+unparsed_label = UNPARSED_LABEL
+total_rows_stats = len(df_filtered_for_stats)
+unparsed_count = int((df_filtered_for_stats["fn"] == unparsed_label).sum())
+pct_unparsed = (unparsed_count / total_rows_stats * 100.0) if total_rows_stats > 0 else 0.0
+
+# Badge + 2 tombol download
+b1, b2, b3 = st.columns([2,1,1])
+with b1:
+    st.caption(
+        f"Menampilkan **{len(df_plot):,}** transaksi"
+        + (f" | Network: **{f_net}**" if f_net != \"(All)\" else \"\")
+        + (f" | Function: **{f_fn}**" if f_fn != \"(All)\" else \"\")
+        + (f" | Unparsed: **{pct_unparsed:.1f}%**" if total_rows_stats > 0 else \"\")
+    )
+with b2:
+    st.download_button(
+        "⬇️ Download CSV (Filtered)",
+        data=csv_bytes(df_plot.drop(columns=[c for c in df_plot.columns if c.startswith(('cost_', 'gas_', 'ts', 'fn_'))], errors='ignore')),  # bersihin kolom helper kalau ada
+        file_name="vision_filtered.csv",
+        mime="text/csv",
+        use_container_width=True
+    )
+with b3:
+    # subset unparsed sesuai filter tanggal/network/function (SEBELUM hide), biar user bisa investigasi
+    df_unparsed_filtered = df_filtered_for_stats[df_filtered_for_stats["fn"] == unparsed_label]
+    st.download_button(
+        "⬇️ Unparsed CSV",
+        data=csv_bytes(df_unparsed_filtered.drop(columns=[c for c in df_unparsed_filtered.columns if c.startswith(('cost_', 'gas_', 'ts', 'fn_'))], errors='ignore')),
+        file_name="vision_unparsed_filtered.csv",
+        mime="text/csv",
+        use_container_width=True,
+        disabled=df_unparsed_filtered.empty
+    )
 
 # ===== Charts =====
 g1, g2 = st.columns(2)
