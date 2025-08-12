@@ -461,6 +461,7 @@ def upsert(table: str, df: pd.DataFrame, key_cols: list, cols: list) -> int:
     con.close()
     return n
 
+def render_cost_page():
 # -------------------------------
 # Sidebar
 # -------------------------------
@@ -842,6 +843,8 @@ if page == "Cost (Vision)":
                 },
             )
             st.caption("Catatan: Unparsed berarti nama fungsi tidak terdeteksi dari data transaksi. Cek ABI/source di explorer.")
+
+    pass
 
 # -------------------------------
 # SECURITY (SWC)
