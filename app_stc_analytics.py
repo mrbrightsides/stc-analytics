@@ -458,7 +458,32 @@ if page == "Cost (Vision)":
         if ing:
             st.success(f"{ing} baris masuk ke vision_costs.")
 
-    # … load & tampilkan tabel …
+    # ===== DI LUAR EXPANDER (INDENT 4 SPASI) =====
+    want_load = st.session_state.get("load_existing", False)
+    no_new_upload = (
+        (st.session_state.get('nd_cost') is None) and
+        (st.session_state.get('csv_cost') is None)
+    )
+    if no_new_upload and not want_load:
+        st.info("Belum ada data cost untuk sesi ini. Upload NDJSON/CSV atau aktifkan ‘Load existing stored data’ di sidebar.")
+        st.stop()
+
+    con = get_conn()
+    df = con.execute("SELECT * FROM vision_costs ORDER BY timestamp DESC").df()
+    con.close()
+
+    if df.empty:
+        st.info("Belum ada data cost.")
+    else:
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Total Rows", f"{len(df):,}")
+        c2.metric("Unique Tx", f"{df['tx_hash'].nunique():,}" if 'tx_hash' in df else "—")
+        c3.metric("Total IDR", f"{int(pd.to_numeric(df.get('cost_idr', 0), errors='coerce').fillna(0).sum()):,}")
+        st.markdown("### Detail Vision Costs")
+        st.dataframe(df, use_container_width=True)
+        st.download_button("⬇️ Download CSV (All)", data=csv_bytes(df),
+                           file_name="vision_costs_all.csv", mime="text/csv",
+                           use_container_width=True)
 
 # -------------------------------
 # PERFORMANCE (Bench)
