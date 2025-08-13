@@ -487,21 +487,43 @@ if page == "Cost (Vision)":
         df = df_raw.rename(columns=m).copy()
 
         df["project"] = "STC"
-        if "timestamp" in df.columns:
-            df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce").fillna(pd.Timestamp.utcnow())
-        else:
-            df["timestamp"] = pd.Timestamp.utcnow()
+        df["timestamp"] = pd.to_datetime(df.get("timestamp"), errors="coerce")
+
+        df["timestamp"] = df["timestamp"].fillna(pd.Timestamp.utcnow())
 
         gwei = pd.to_numeric(df.get("gas_price_gwei", 0), errors="coerce").fillna(0)
         df["gas_price_wei"] = (gwei * 1_000_000_000).round().astype("Int64")
 
         status_series = df.get("status")
-        if status_series is not None:
-            df["meta_json"] = status_series.astype(str).apply(lambda s: json.dumps({"status": s}) if s else "{}")
-        else:
-            df["meta_json"] = "{}"
+        df["meta_json"] = (
 
-        df["id"] = df.apply(lambda r: f"{r.get('tx_hash','')}::{(r.get('function_name') or '')}".strip(), axis=1)
+            status_series.astype(str).apply(lambda s: json.dumps({"status": s}) if s else "{}")
+
+            if status_series is not None else "{}"
+
+        )
+
+        tx = df.get("tx_hash").astype(str).fillna("")
+
+        is_dummy = tx.eq("") | tx.str.contains(r"\.\.\.")
+
+        base_id = tx + "::" + df.get("function_name", "").astype(str).fillna("")
+
+        df["id"] = base_id
+
+        if is_dummy.any():
+
+            unique_fallback = (
+
+                df.astype(str).agg("|".join, axis=1)
+
+                .pipe(lambda s: s.str.encode("utf-8"))
+
+                .map(lambda b: hashlib.sha256(b).hexdigest())
+
+            )
+
+            df.loc[is_dummy, "id"] = "csv::" + unique_fallback[is_dummy].str.slice(0, 16)
 
         cols = ["id","project","network","timestamp","tx_hash","contract","function_name",
                 "block_number","gas_used","gas_price_wei","cost_eth","cost_idr","meta_json"]
@@ -528,8 +550,9 @@ if page == "Cost (Vision)":
 
         # === Templates / samples ===
         tpl_cost = pd.DataFrame(columns=[
-            "Network","Tx Hash","From","To","Block","Gas Used","Gas Price (Gwei)",
-            "Estimated Fee (ETH)","Estimated Fee (Rp)","Contract","Function","Timestamp","Status"
+            "Network", "Tx Hash", "From", "To", "Block", "Gas Used", "Gas Price (Gwei)",
+
+            "Estimated Fee (ETH)", "Estimated Fee (Rp)", "Contract", "Function", "Timestamp", "Status"
         ]).head(0)
         c1, c2 = st.columns(2)
         with c1:
@@ -542,11 +565,15 @@ if page == "Cost (Vision)":
             )
         with c2:
             vision_sample_rows = [{
-                "id":"demo::bookHotel","project":"STC","network":"Sepolia",
-                "timestamp":"2025-08-12T09:45:00Z","tx_hash":"0xabc123...",
-                "contract":"SmartReservation","function_name":"bookHotel",
-                "block_number":123456,"gas_used":21000,"gas_price_wei":22500000000,
-                "cost_eth":0.0005,"cost_idr":15000,"meta_json":"{\"status\":\"Success\"}"
+                "id": "demo::bookHotel", "project": "STC", "network": "Sepolia",
+
+                "timestamp": "2025-08-12T09:45:00Z", "tx_hash": "0xabc123...",
+
+                "contract": "SmartReservation", "function_name": "bookHotel",
+
+                "block_number": 123456, "gas_used": 21000, "gas_price_wei": 22500000000,
+
+                "cost_eth": 0.0005, "cost_idr": 15000, "meta_json": "{\"status\":\"Success\"}"
             }]
             ndjson_bytes = ("\n".join(json.dumps(r) for r in vision_sample_rows)).encode("utf-8")
             st.download_button(
@@ -578,15 +605,20 @@ if page == "Cost (Vision)":
                     else:
                         d["meta_json"] = "{}"
 
-                cols = ["id","project","network","timestamp","tx_hash","contract","function_name",
-                        "block_number","gas_used","gas_price_wei","cost_eth","cost_idr","meta_json"]
+                cols = [
+
+                    "id", "project", "network", "timestamp", "tx_hash", "contract", "function_name",
+
+                    "block_number", "gas_used", "gas_price_wei", "cost_eth", "cost_idr", "meta_json"
+
+                ]
                 for c in cols:
                     if c not in d.columns:
                         d[c] = None
 
                 d["project"]   = d.get("project").fillna("STC")
                 d["timestamp"] = pd.to_datetime(d["timestamp"], errors="coerce").fillna(pd.Timestamp.utcnow())
-                for numc in ["block_number","gas_used","gas_price_wei","cost_eth","cost_idr"]:
+                for numc in ["block_number", "gas_used", "gas_price_wei", "cost_eth", "cost_idr"]:
                     d[numc] = pd.to_numeric(d[numc], errors="coerce")
 
                 ing += upsert("vision_costs", d, ["id"], cols)
@@ -640,8 +672,9 @@ if page == "Cost (Vision)":
         df_base["ts"] = pd.to_datetime(df_base["timestamp"], errors="coerce")
         df_base["fn_raw"] = df_base["function_name"]
         df_base["fn"] = df_base["fn_raw"].fillna(UNPARSED_LABEL).replace({"(unknown)": UNPARSED_LABEL})
-        df_base["cost_idr_num"]  = pd.to_numeric(df_base.get("cost_idr", 0), errors="coerce").fillna(0)
-        df_base["gas_used_num"]  = pd.to_numeric(df_base.get("gas_used", 0), errors="coerce").fillna(0)
+        df_base["cost_idr_num"] = pd.to_numeric(df_base.get("cost_idr", 0), errors="coerce").fillna(0)
+
+        df_base["gas_used_num"] = pd.to_numeric(df_base.get("gas_used", 0), errors="coerce").fillna(0)
         df_base["gas_price_num"] = pd.to_numeric(df_base.get("gas_price_wei", 0), errors="coerce").fillna(0)
 
         def short_tx(x: str) -> str:
@@ -660,7 +693,7 @@ if page == "Cost (Vision)":
             }.get(str(network), "https://etherscan.io/tx/{}")
             return base.format(tx)
 
-        fc1, fc2, fc3, fc4, fc5, fc6, fc7 = st.columns([1.4,1,1,1,1,1,1])
+        fc1, fc2, fc3, fc4, fc5, fc6, fc7 = st.columns([1.4, 1, 1, 1, 1, 1, 1])
         with fc1:
             dmin = df_base["ts"].min(); dmax = df_base["ts"].max()
             date_range = st.date_input(
@@ -671,7 +704,7 @@ if page == "Cost (Vision)":
         with fc2:
             f_net = st.selectbox("Network", ["(All)"] + sorted(df_base["network"].dropna().astype(str).unique().tolist()), index=0)
         with fc3:
-            f_fn  = st.selectbox(
+            f_fn = st.selectbox(
                 "Function",
                 ["(All)"] + sorted(df_base["fn"].dropna().astype(str).unique().tolist()),
                 index=0,
@@ -685,7 +718,7 @@ if page == "Cost (Vision)":
         with fc6:
             line_log = st.checkbox("Line: log scale (Y)", value=False)
         with fc7:
-            scatter_scale = st.selectbox("Scatter scale", ["linear","log x","log y","log x & y"], index=0)
+            scatter_scale = st.selectbox("Scatter scale", ["linear", "log x", "log y", "log x & y"], index=0)
 
         # Apply filters
         df_plot = df_base.copy()
@@ -723,8 +756,8 @@ if page == "Cost (Vision)":
         with b1:
             st.caption(
                 f"Menampilkan **{len(df_plot):,}** transaksi"
-                + (f" | Network: **{f_net}**"   if f_net != "(All)" else "")
-                + (f" | Function: **{f_fn}**"   if f_fn  != "(All)" else "")
+                + (f" | Network: **{f_net}**"  if f_net != "(All)" else "")
+                + (f" | Function: **{f_fn}**"  if f_fn != "(All)" else "")
                 + (f" | Unparsed: **{pct_unparsed:.1f}%**" if total_rows_stats > 0 else "")
             )
         with b2:
@@ -784,10 +817,10 @@ if page == "Cost (Vision)":
 
         sc = df_plot[(df_plot["gas_used_num"] > 0) & (df_plot["gas_price_num"] > 0)].copy()
         if not sc.empty:
-            sc["tx_short"]     = sc["tx_hash"].astype(str).map(short_tx)
-            sc["cost_str"]     = sc["cost_idr_num"].round().astype(int).map(lambda v: f"{v:,}")
+            sc["tx_short"] = sc["tx_hash"].astype(str).map(short_tx)
+            sc["cost_str"] = sc["cost_idr_num"].round().astype(int).map(lambda v: f"{v:,}")
             sc["gas_used_str"] = sc["gas_used_num"].round().astype(int).map(lambda v: f"{v:,}")
-            sc["gas_price_str"]= sc["gas_price_num"].round().astype(int).map(lambda v: f"{v:,}")
+            sc["gas_price_str"] = sc["gas_price_num"].round().astype(int).map(lambda v: f"{v:,}")
             sc["explorer_url"] = sc.apply(lambda r: explorer_tx_url(r["network"], r["tx_hash"]), axis=1)
 
             fig = px.scatter(
