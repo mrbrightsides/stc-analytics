@@ -520,11 +520,10 @@ if page == "Cost (Vision)":
         # default project
         df["project"] = "STC"
 
-        # timestamp (dayfirst untuk format 31/05/2025 …)
-        ts = pd.to_datetime(df.get("timestamp"), errors="coerce", dayfirst=True)
+        ts_src = df["timestamp"] if "timestamp" in df.columns else pd.Series(pd.NaT, index=df.index)
+        ts = pd.to_datetime(ts_src, errors="coerce", dayfirst=True)
         df["timestamp"] = ts.fillna(pd.Timestamp.utcnow())
 
-        # gas_price_wei (aman kalau kolom gak ada)
         if "gas_price_gwei" in df.columns:
             gwei_src = df["gas_price_gwei"]
         else:
