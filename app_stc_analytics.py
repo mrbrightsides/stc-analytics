@@ -484,6 +484,13 @@ def upsert(table: str, df: pd.DataFrame, key_cols: list, cols: list) -> int:
     con = get_conn()
     col_list = ", ".join(cols)
 
+    def upsert(table, d, key_cols, col_list=None):
+        d = d.copy()
+    # normalkan kolom datetime timezone-aware jadi naive
+        for c in d.columns:
+            if str(d[c].dtype).startswith("datetime64[ns,"):
+                d[c] = d[c].dt.tz_localize(None)
+    
     con.execute(f"CREATE TEMP TABLE stg AS SELECT {col_list} FROM {table} WITH NO DATA;")
     con.register("df_stage", d)
     con.execute(f"INSERT INTO stg ({col_list}) SELECT {col_list} FROM df_stage;")
