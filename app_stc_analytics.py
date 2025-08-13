@@ -420,7 +420,7 @@ def csv_bytes(df: pd.DataFrame) -> bytes:
     return buff.getvalue().encode("utf-8")
 
 def fig_export_buttons(fig, base_name: str):
-    """Tampilkan tombol export chart. PNG butuh kaleido (opsional)."""
+    
     c1, c2 = st.columns(2)
     html = fig.to_html(include_plotlyjs="cdn", full_html=False)
     c1.download_button(
@@ -432,7 +432,7 @@ def fig_export_buttons(fig, base_name: str):
     )
     try:
         import plotly.io as pio
-        png_bytes = pio.to_image(fig, format="png")  # perlu 'kaleido' di requirements.txt
+        png_bytes = pio.to_image(fig, format="png")  
         c2.download_button(
             "⬇️ Export PNG",
             data=png_bytes,
@@ -441,10 +441,10 @@ def fig_export_buttons(fig, base_name: str):
             use_container_width=True,
         )
     except Exception:
-        c2.caption("Tambah `kaleido` di requirements.txt untuk export PNG")
+        c2.caption()
 
 def mark_outliers_iqr(series: pd.Series) -> pd.Series:
-    """True kalau nilai di atas Q3 + 1.5*IQR (high outliers)."""
+    
     s = pd.to_numeric(series, errors="coerce")
     q1, q3 = s.quantile(0.25), s.quantile(0.75)
     iqr = q3 - q1
@@ -455,10 +455,7 @@ def mark_outliers_iqr(series: pd.Series) -> pd.Series:
 # Helpers (DB)
 # -------------------------------
 def upsert(table: str, df: pd.DataFrame, key_cols: list, cols: list) -> int:
-    """
-    Upsert sederhana: hapus baris yang key-nya sama dengan batch (stg), lalu insert.
-    Return: jumlah baris di staging (int).
-    """
+    
     if df is None or df.empty:
         return 0
 
@@ -466,15 +463,12 @@ def upsert(table: str, df: pd.DataFrame, key_cols: list, cols: list) -> int:
     if missing:
         raise ValueError(f"Missing columns for {table}: {missing}")
 
-    # Ambil urutan kolom tepat + bersihkan key
     d = df[cols].copy()
     for k in key_cols:
         d[k] = d[k].astype(str).fillna("").str.strip()
 
-    # buang baris dg key kosong
     d = d[d[key_cols].apply(lambda r: all(bool(x) for x in r), axis=1)]
 
-    # dedup di batch
     d = d.drop_duplicates(subset=key_cols, keep="last")
 
     if d.empty:
@@ -483,12 +477,10 @@ def upsert(table: str, df: pd.DataFrame, key_cols: list, cols: list) -> int:
     con = get_conn()
     col_list = ", ".join(cols)
 
-    # staging mengikuti skema tabel target (agar tipe data selaras)
     con.execute(f"CREATE TEMP TABLE stg AS SELECT {col_list} FROM {table} WITH NO DATA;")
     con.register("df_stage", d)
     con.execute(f"INSERT INTO stg ({col_list}) SELECT {col_list} FROM df_stage;")
 
-    # hapus di target untuk key yang ada di staging
     key_list = ", ".join(key_cols)
     join_cond = " AND ".join([f"{table}.{k} = d.{k}" for k in key_cols])
     con.execute(f"""
@@ -497,7 +489,6 @@ def upsert(table: str, df: pd.DataFrame, key_cols: list, cols: list) -> int:
         WHERE {join_cond};
     """)
 
-    # insert baru
     con.execute(f"INSERT INTO {table} ({col_list}) SELECT {col_list} FROM stg;")
 
     n = con.execute("SELECT COUNT(*) FROM stg").fetchone()[0]
