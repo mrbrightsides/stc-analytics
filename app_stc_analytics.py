@@ -19,14 +19,14 @@ try:
         render_bench_page,
     )
 except Exception as e:
-    def _oops(name):
-        def _f():
-            st.error(f"Gagal memuat `{name}`: {e}")
-        return _f
-    render_tourism_sidebar = _oops("render_tourism_sidebar")
-    render_cost_page       = _oops("render_cost_page")
-    render_swc_page        = _oops("render_swc_page")
-    render_bench_page      = _oops("render_bench_page")
+    def render_tourism_sidebar():
+        st.error(f"Gagal memuat `tourism_pages`: {err}")
+    def render_cost_page():
+        st.error(f"Gagal memuat `render_cost_page`: {err}")
+    def render_swc_page():
+        st.error(f"Gagal memuat `render_swc_page`: {err}")
+    def render_bench_page():
+        st.error(f"Gagal memuat `render_bench_page`: {err}")
 
 from tools_scan import scan_tool
 from tools_test import test_tool
