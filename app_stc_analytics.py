@@ -957,6 +957,7 @@ if page == "Cost (Vision)":
                 )
                 fig.update_xaxes(categoryorder="total descending")
                 st.plotly_chart(fig, use_container_width=True)
+                fig_export_buttons(fig, "vision_fn_top15")
 
         sc = df_plot[(df_plot["gas_used_num"] > 0) & (df_plot["gas_price_num"] > 0)].copy()
         if not sc.empty:
