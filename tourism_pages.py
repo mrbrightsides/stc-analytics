@@ -1,15 +1,7 @@
 import streamlit as st, duckdb, pandas as pd, json, re
-import os, io
-import duckdb
-import pandas as pd
-import plotly.express as px
 from datetime import datetime
 from pathlib import Path
-from core_db import (
-    DB_PATH, get_conn, ensure_db, drop_all, upsert,
-    csv_bytes, read_csv_any
-)
-import hashlib
+    import hashlib
 
 def render_tourism_sidebar():
     st.sidebar.title("🧭 STC Analytics")
@@ -52,7 +44,7 @@ def _load_csv(path: Path, fallback_cols: list[str]) -> pd.DataFrame:
         st.error(f"Gagal baca {path.name}: {e}")
     return pd.DataFrame(columns=fallback_cols).head(0)
 
-def sample_templates():
+def load_templates_from_repo():
     tpl_cost = _load_csv(
         TEMPLATES_DIR / "vision_template.csv",
         ["Network","Tx Hash","From","To","Block","Gas Used","Gas Price (Gwei)",
@@ -248,22 +240,6 @@ def upsert(table: str, df: pd.DataFrame, key_cols: list, cols: list) -> int:
     n = con.execute("SELECT COUNT(*) FROM stg").fetchone()[0]
     con.close()
     return n
-
-def render_tourism_sidebar():
-    import streamlit as st, duckdb
-    st.sidebar.title("🧭 STC Analytics")
-    with st.sidebar.expander("⚙️ Data control", expanded=True):
-        st.checkbox("Load existing stored data", value=False, key="load_existing")
-        if st.button("🧹 Clear all DuckDB data", use_container_width=True):
-            con = duckdb.connect(DB_PATH)
-            for t in ["vision_costs", "swc_findings", "bench_runs", "bench_tx"]:
-                con.execute(f"DELETE FROM {t};")
-            con.close()
-            st.success("Database cleared. Siap upload data baru.")
-        if st.button("🧨 Reset schema (DROP & CREATE)", use_container_width=True):
-            drop_all()
-            ensure_db()
-            st.success("Schema di-reset. Tabel dibuat ulang.")
 
 def render_cost_page():
     # -------------------------------
