@@ -1,4 +1,4 @@
-import os, json, re, io, hashlib, traceback
+import os, json, re, io, hashlib, traceback, importlib
 from datetime import datetime
 from pathlib import Path
 
@@ -10,29 +10,23 @@ import streamlit as st
 # ===== App config (panggilan st.* pertama) =====
 st.set_page_config(page_title="STC Analytics", layout="wide")
 
-# ===== Imports halaman (defensif) =====
+# ===== Imports halaman (super-defensif) =====
+_TP_IMPORT_ERR = None
 try:
-    from tourism_pages import (
-        render_tourism_sidebar,
-        render_cost_page,
-        render_swc_page,
-        render_bench_page,
-    )
-except Exception as e:
-    # Simpan pesan error sebagai GLOBAL agar tidak hilang (PEP 3110: var 'e' dibersihkan setelah except)
+    tp = importlib.import_module("tourism_pages")
+    render_tourism_sidebar = getattr(tp, "render_tourism_sidebar")
+    render_cost_page       = getattr(tp, "render_cost_page")
+    render_swc_page        = getattr(tp, "render_swc_page")
+    render_bench_page      = getattr(tp, "render_bench_page")
+except Exception:
     _TP_IMPORT_ERR = traceback.format_exc()
-    def render_tourism_sidebar():
-        st.error("Gagal memuat `tourism_pages` (detail ada di logs).")
-        st.caption(_TP_IMPORT_ERR)
-    def render_cost_page():
-        st.error("Gagal memuat `render_cost_page` (lihat logs).")
-        st.caption(_TP_IMPORT_ERR)
-    def render_swc_page():
-        st.error("Gagal memuat `render_swc_page` (lihat logs).")
-        st.caption(_TP_IMPORT_ERR)
-    def render_bench_page():
-        st.error("Gagal memuat `render_bench_page` (lihat logs).")
-        st.caption(_TP_IMPORT_ERR)
+    def _explain_missing(name: str):
+        st.error(f"Gagal memuat `{name}` dari `tourism_pages` (detail di bawah). Pastikan file **tourism_pages.py** ada di root proyek dan tidak error saat di-import.")
+        st.code(_TP_IMPORT_ERR, language="python")
+    def render_tourism_sidebar(): _explain_missing("render_tourism_sidebar")
+    def render_cost_page():       _explain_missing("render_cost_page")
+    def render_swc_page():        _explain_missing("render_swc_page")
+    def render_bench_page():      _explain_missing("render_bench_page")
 
 from tools_scan import scan_tool
 from tools_test import test_tool
