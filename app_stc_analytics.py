@@ -425,16 +425,31 @@ def upsert(table: str, df: pd.DataFrame, key_cols: list, cols: list) -> int:
     missing = [c for c in cols if c not in df.columns]
     if missing:
         raise ValueError(f"Missing columns for {table}: {missing}")
+
+    # Ambil urutan kolom tepat + bersihkan key
+
+    d = df[cols].copy()
+
+    for k in key_cols:
+
+        d[k] = d[k].astype(str).fillna("").str.strip()
+
+    # buang baris dg key kosong
+
+    d = d[d[key_cols].apply(lambda r: all(bool(x) for x in r), axis=1)]
+
+    # dedup di batch
+
+    d = d.drop_duplicates(subset=key_cols, keep="last")
+    
     con = get_conn()
     con.execute(f"CREATE TEMP TABLE stg AS SELECT {', '.join(cols)} FROM {table} WITH NO DATA;")
-    con.register("df_stage", df[cols])
-    con.execute("INSERT INTO stg SELECT * FROM df_stage;")
-    where = " AND ".join([f"{table}.{k}=stg.{k}" for k in key_cols])
-    con.execute(f"DELETE FROM {table} USING stg WHERE {where};")
-    con.execute(f"INSERT INTO {table} SELECT * FROM stg;")
-    n = con.execute("SELECT COUNT(*) FROM stg").fetchone()[0]
-    con.close()
-    return n
+    con.register("df_stage", d)
+    # INSERT eksplisit nama kolom agar tak tergantung urutan
+
+    col_list = ", ".join(cols)
+
+    con.execute(f"INSERT INTO stg ({col_list}) SELECT {col_list} FROM df_stage;")
 
 # -------------------------------
 # Sidebar
