@@ -1,4 +1,4 @@
-import os, json, re, io, hashlib
+import os, json, re, io, hashlib, traceback
 from datetime import datetime
 from pathlib import Path
 
@@ -19,15 +19,20 @@ try:
         render_bench_page,
     )
 except Exception as e:
-    # Fallback jika module tourism_pages gagal di-import
+    # Simpan pesan error sebagai GLOBAL agar tidak hilang (PEP 3110: var 'e' dibersihkan setelah except)
+    _TP_IMPORT_ERR = traceback.format_exc()
     def render_tourism_sidebar():
-        st.error(f"Gagal memuat `tourism_pages`: {e}")
+        st.error("Gagal memuat `tourism_pages` (detail ada di logs).")
+        st.caption(_TP_IMPORT_ERR)
     def render_cost_page():
-        st.error(f"Gagal memuat `render_cost_page`: {e}")
+        st.error("Gagal memuat `render_cost_page` (lihat logs).")
+        st.caption(_TP_IMPORT_ERR)
     def render_swc_page():
-        st.error(f"Gagal memuat `render_swc_page`: {e}")
+        st.error("Gagal memuat `render_swc_page` (lihat logs).")
+        st.caption(_TP_IMPORT_ERR)
     def render_bench_page():
-        st.error(f"Gagal memuat `render_bench_page`: {e}")
+        st.error("Gagal memuat `render_bench_page` (lihat logs).")
+        st.caption(_TP_IMPORT_ERR)
 
 from tools_scan import scan_tool
 from tools_test import test_tool
