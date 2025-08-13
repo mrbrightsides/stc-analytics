@@ -523,16 +523,17 @@ if page == "Cost (Vision)":
         elif "meta_json" not in df.columns:
             df["meta_json"] = "{}"
 
+        # --- id: tahan kolom hilang ---
         tx_series = df["tx_hash"] if "tx_hash" in df.columns else pd.Series("", index=df.index)
         fn_series = df["function_name"] if "function_name" in df.columns else pd.Series("", index=df.index)
 
         tx = tx_series.astype(str).fillna("")
-        base_id = tx + "::" + fn_series.astype(str).fillna("")
-        df["id"] = base_id
-        is_dummy = tx.eq("") | tx.str.contains(r"\.\.\.")
-        base_id = tx + "::" + df.get("function_name", "").astype(str).fillna("")
+        fn = fn_series.astype(str).fillna("")
+
+        base_id = tx + "::" + fn
         df["id"] = base_id
 
+        is_dummy = tx.eq("") | tx.str.contains(r"\.\.\.")
         if is_dummy.any():
             unique_fallback = (
                 df.astype(str).agg("|".join, axis=1)
@@ -540,6 +541,7 @@ if page == "Cost (Vision)":
                 .map(lambda b: hashlib.sha256(b).hexdigest())
             )
             df.loc[is_dummy, "id"] = "csv::" + unique_fallback[is_dummy].str.slice(0, 16)
+
 
         cols = ["id","project","network","timestamp","tx_hash","contract","function_name",
                 "block_number","gas_used","gas_price_wei","cost_eth","cost_idr","meta_json"]
