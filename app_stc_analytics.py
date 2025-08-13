@@ -419,8 +419,35 @@ def csv_bytes(df: pd.DataFrame) -> bytes:
     df.to_csv(buff, index=False)
     return buff.getvalue().encode("utf-8")
 
-def fig_export_buttons(fig, base_name: str):
-    
+def fig_export_buttons(fig, base_name: str) -> None:
+    """Render tombol export untuk sebuah Plotly figure."""
+    html = fig.to_html(include_plotlyjs="cdn", full_html=False)
+
+    col_html, col_png = st.columns(2)
+
+    with col_html:
+        st.download_button(
+            "⬇️ Export chart (HTML)",
+            data=html.encode("utf-8"),
+            file_name=f"{base_name}.html",
+            mime="text/html",
+            use_container_width=True,
+        )
+
+    with col_png:
+        try:
+            import plotly.io as pio
+            png_bytes = pio.to_image(fig, format="png") 
+            st.download_button(
+                "⬇️ Export PNG",
+                data=png_bytes,
+                file_name=f"{base_name}.png",
+                mime="image/png",
+                use_container_width=True,
+            )
+        except Exception:
+            st.caption("Tambah `kaleido` di requirements.txt untuk export PNG")
+
     c1, c2 = st.columns(2)
     html = fig.to_html(include_plotlyjs="cdn", full_html=False)
     c1.download_button(
