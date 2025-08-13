@@ -419,6 +419,38 @@ def csv_bytes(df: pd.DataFrame) -> bytes:
     df.to_csv(buff, index=False)
     return buff.getvalue().encode("utf-8")
 
+def fig_export_buttons(fig, base_name: str):
+    """Tampilkan tombol export chart. PNG butuh kaleido (opsional)."""
+    c1, c2 = st.columns(2)
+    html = fig.to_html(include_plotlyjs="cdn", full_html=False)
+    c1.download_button(
+        "⬇️ Export chart (HTML)",
+        data=html.encode("utf-8"),
+        file_name=f"{base_name}.html",
+        mime="text/html",
+        use_container_width=True,
+    )
+    try:
+        import plotly.io as pio
+        png_bytes = pio.to_image(fig, format="png")  # perlu 'kaleido' di requirements.txt
+        c2.download_button(
+            "⬇️ Export PNG",
+            data=png_bytes,
+            file_name=f"{base_name}.png",
+            mime="image/png",
+            use_container_width=True,
+        )
+    except Exception:
+        c2.caption("Tambah `kaleido` di requirements.txt untuk export PNG")
+
+def mark_outliers_iqr(series: pd.Series) -> pd.Series:
+    """True kalau nilai di atas Q3 + 1.5*IQR (high outliers)."""
+    s = pd.to_numeric(series, errors="coerce")
+    q1, q3 = s.quantile(0.25), s.quantile(0.75)
+    iqr = q3 - q1
+    thresh = q3 + 1.5 * iqr
+    return s > thresh
+
 # -------------------------------
 # Helpers (DB)
 # -------------------------------
@@ -838,6 +870,7 @@ if page == "Cost (Vision)":
                 if do_smooth and len(ts) >= 7:
                     ts = ts.assign(cost_smooth=ts.groupby("network")[y].transform(lambda s: s.rolling(7, min_periods=1).mean()))
                     y = "cost_smooth"
+                show_median = st.checkbox("Tampilkan garis median", value=False)
                 fig = px.line(
                     ts, x="ts", y=y, color="network", markers=not do_smooth,
                     title="Biaya per Transaksi (Rp) vs Waktu",
@@ -872,12 +905,31 @@ if page == "Cost (Vision)":
             sc["gas_price_str"] = sc["gas_price_num"].round().astype(int).map(lambda v: f"{v:,}")
             sc["explorer_url"] = sc.apply(lambda r: explorer_tx_url(r["network"], r["tx_hash"]), axis=1)
 
+            sc["is_outlier"] = mark_outliers_iqr(sc["cost_idr_num"])
+
             fig = px.scatter(
                 sc, x="gas_used_num", y="gas_price_num", size="cost_idr_num", color="network",
                 title="Gas Used vs Gas Price (size = Biaya Rp)",
                 labels={"gas_used_num": "Gas Used", "gas_price_num": "Gas Price (wei)", "network": "Jaringan"},
                 hover_data=None,
             )
+            
+            out = sc[sc["is_outlier"]]
+            if not out.empty:
+                fig.add_scatter(
+                    x=out["gas_used_num"], y=out["gas_price_num"],
+                    mode="markers",
+                    marker=dict(symbol="star", size=16, line=dict(width=2)),
+                    name="Outliers (Biaya tinggi)",
+                    text=out.apply(
+                        lambda r: (
+                            f"Function={r['fn']}"
+                            f"<br>Tx={r['tx_short']}"
+                            f"<br>Biaya (Rp)={r['cost_str']}"
+                        ), axis=1),
+                    hovertemplate="%{text}",
+                )
+            
             fig.update_traces(
                 text=sc.apply(
                     lambda r: (
