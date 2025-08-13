@@ -901,7 +901,9 @@ def map_csv_cost(df_raw: pd.DataFrame) -> pd.DataFrame:
                     "timestamp": st.column_config.DatetimeColumn("Waktu"),
                 },
             )
-            st.caption("Catatan: Unparsed berarti nama fungsi tidak terdeteksi dari data transaksi. Cek ABI/source di explorer.")
+            st.caption(
+                "Catatan: Unparsed berarti nama fungsi tidak terdeteksi dari data transaksi. Cek ABI/source di explorer."
+            )
 
 # -------------------------------
 # SECURITY (SWC)
