@@ -303,7 +303,7 @@ def render_cost_page():
             if status_series is not None else "{}"
         )
 
-        tx = df.get("tx_hash").astype(str).fillna("")
+        tx = S("tx_hash").astype(str).fillna("")
         is_dummy = tx.eq("") | tx.str.contains(r"\.\.\.")
         base_id = tx + "::" + df.get("function_name", "").astype(str).fillna("")
         df["id"] = base_id
