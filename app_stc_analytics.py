@@ -34,7 +34,7 @@ def _load_csv(path: Path, fallback_cols: list[str]) -> pd.DataFrame:
         st.error(f"Gagal baca {path.name}: {e}")
     return pd.DataFrame(columns=fallback_cols).head(0)
 
-def sample_templates():
+def load_templates_from_repo():
     tpl_cost = _load_csv(
         TEMPLATES_DIR / "vision_template.csv",
         ["Network","Tx Hash","From","To","Block","Gas Used","Gas Price (Gwei)",
