@@ -650,6 +650,43 @@ def render_cost_page():
             )
             st.caption("Catatan: Unparsed berarti nama fungsi tidak terdeteksi dari data transaksi. Cek ABI/source di explorer.")
 
+def map_swc(df: pd.DataFrame) -> pd.DataFrame:
+    cols = ["finding_id","timestamp","network","contract","file","line_start","line_end",
+            "swc_id","title","severity","confidence","status","remediation","commit_hash"]
+
+    for c in cols:
+        if c not in df.columns:
+            df[c] = None
+
+    # tipisasi
+    df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce").fillna(pd.Timestamp.utcnow())
+    for ic in ["line_start", "line_end"]:
+        df[ic] = pd.to_numeric(df[ic], errors="coerce").astype("Int64")
+    df["confidence"] = pd.to_numeric(df["confidence"], errors="coerce")
+
+    # fallback id stabil + unik
+    raw_key = (
+        df.get("contract", "").astype(str).fillna("") + "|" +
+        df.get("file", "").astype(str).fillna("") + "|" +
+        df.get("swc_id", "").astype(str).fillna("") + "|" +
+        df.get("line_start").astype(str).fillna("") + "|" +
+        df.get("title", "").astype(str).fillna("") + "|" +
+        pd.Series(range(len(df)), index=df.index).astype(str)
+    )
+    fallback = raw_key.str.encode("utf-8").map(lambda b: hashlib.sha256(b).hexdigest().upper()[:16])
+    fallback = "SWC::" + fallback
+
+    fid = df.get("finding_id")
+    if fid is None:
+        df["finding_id"] = fallback
+    else:
+        fid = fid.astype(str)
+        mask_empty = fid.isna() | fid.str.strip().eq("")
+        df.loc[mask_empty, "finding_id"] = fallback[mask_empty]
+
+    df = df.drop_duplicates(subset=["finding_id"], keep="last").copy()
+    return df[cols]
+
 def render_swc_page():
     # -------------------------------
     # SECURITY (SWC)
