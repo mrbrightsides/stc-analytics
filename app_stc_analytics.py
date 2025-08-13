@@ -19,14 +19,15 @@ try:
         render_bench_page,
     )
 except Exception as e:
+    # Fallback jika module tourism_pages gagal di-import
     def render_tourism_sidebar():
-        st.error(f"Gagal memuat `tourism_pages`: {err}")
+        st.error(f"Gagal memuat `tourism_pages`: {e}")
     def render_cost_page():
-        st.error(f"Gagal memuat `render_cost_page`: {err}")
+        st.error(f"Gagal memuat `render_cost_page`: {e}")
     def render_swc_page():
-        st.error(f"Gagal memuat `render_swc_page`: {err}")
+        st.error(f"Gagal memuat `render_swc_page`: {e}")
     def render_bench_page():
-        st.error(f"Gagal memuat `render_bench_page`: {err}")
+        st.error(f"Gagal memuat `render_bench_page`: {e}")
 
 from tools_scan import scan_tool
 from tools_test import test_tool
