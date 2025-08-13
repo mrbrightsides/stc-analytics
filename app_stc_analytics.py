@@ -1,19 +1,16 @@
 import os, json, re, io, hashlib
 from datetime import datetime
 from pathlib import Path
-
 import duckdb
 import pandas as pd
 import plotly.express as px
 import streamlit as st
-
-# --- Import Tourism pages
+import hashlib
 from tourism_pages import (
     render_tourism_sidebar,
     render_cost_page, render_swc_page, render_bench_page,
 )
 
-# --- Import Tools (dengan fallback stub biar app tetap nyala)
 try:
     from tools_scan import scan_tool
 except Exception:
