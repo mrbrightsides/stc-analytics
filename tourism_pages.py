@@ -658,42 +658,44 @@ def render_swc_page():
 
     # --- mapping CSV/NDJSON -> schema + id fallback + dedup ---
     def map_swc(df: pd.DataFrame) -> pd.DataFrame:
-    cols = ["finding_id","timestamp","network","contract","file","line_start","line_end",
-            "swc_id","title","severity","confidence","status","remediation","commit_hash"]
+        cols = ["finding_id","timestamp","network","contract","file","line_start","line_end",
+                "swc_id","title","severity","confidence","status","remediation","commit_hash"]
 
-    for c in cols:
-        if c not in df.columns:
-            df[c] = None
+        for c in cols:
+            if c not in df.columns:
+                df[c] = None
 
-    df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce").fillna(pd.Timestamp.utcnow())
-    for ic in ["line_start", "line_end"]:
-        df[ic] = pd.to_numeric(df[ic], errors="coerce").astype("Int64")
-    df["confidence"] = pd.to_numeric(df["confidence"], errors="coerce")
+        # tipisasi
+        df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce").fillna(pd.Timestamp.utcnow())
+        for ic in ["line_start", "line_end"]:
+            df[ic] = pd.to_numeric(df[ic], errors="coerce").astype("Int64")
+        df["confidence"] = pd.to_numeric(df["confidence"], errors="coerce")
 
-    raw_key = (
-        df.get("contract", "").astype(str).fillna("") + "|" +
-        df.get("file", "").astype(str).fillna("") + "|" +
-        df.get("swc_id", "").astype(str).fillna("") + "|" +
-        df.get("line_start").astype(str).fillna("") + "|" +
-        df.get("title", "").astype(str).fillna("") + "|" +
-        pd.Series(range(len(df)), index=df.index).astype(str)
-    )
+        # fallback id stabil + unik
+        raw_key = (
+            df.get("contract", "").astype(str).fillna("") + "|" +
+            df.get("file", "").astype(str).fillna("") + "|" +
+            df.get("swc_id", "").astype(str).fillna("") + "|" +
+            df.get("line_start").astype(str).fillna("") + "|" +
+            df.get("title", "").astype(str).fillna("") + "|" +
+            pd.Series(range(len(df)), index=df.index).astype(str)
+        )
 
-    fallback = raw_key.str.encode("utf-8").map(
-        lambda b: hashlib.sha256(b).hexdigest().upper()[:16]
-    )
-    fallback = "SWC::" + fallback
+        fallback = raw_key.str.encode("utf-8").map(
+            lambda b: hashlib.sha256(b).hexdigest().upper()[:16]
+        )
+        fallback = "SWC::" + fallback
 
-    fid = df.get("finding_id")
-    if fid is None:
-        df["finding_id"] = fallback
-    else:
-        fid = fid.astype(str)
-        mask_empty = fid.isna() | fid.str.strip().eq("")
-        df.loc[mask_empty, "finding_id"] = fallback[mask_empty]
+        fid = df.get("finding_id")
+        if fid is None:
+            df["finding_id"] = fallback
+        else:
+            fid = fid.astype(str)
+            mask_empty = fid.isna() | fid.str.strip().eq("")
+            df.loc[mask_empty, "finding_id"] = fallback[mask_empty]
 
-    df = df.drop_duplicates(subset=["finding_id"], keep="last").copy()
-    return df[cols]
+        df = df.drop_duplicates(subset=["finding_id"], keep="last").copy()
+        return df[cols]
 
     # --- Ingest (AUTO seperti Bench/Vision) ---
     with st.expander("Ingest CSV/NDJSON SWC Findings", expanded=False):
@@ -767,7 +769,7 @@ def render_swc_page():
     no_new_upload = (st.session_state.get("swc_csv") is None and st.session_state.get("swc_nd") is None)
     if no_new_upload and not want_load:
         st.info("Belum ada data temuan SWC untuk sesi ini. Upload CSV/NDJSON atau aktifkan ‘Load existing stored data’.")
-        return()
+        return
 
     # --- Load data ---
     con = get_conn()
