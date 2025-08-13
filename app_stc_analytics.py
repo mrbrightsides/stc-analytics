@@ -578,13 +578,11 @@ if page == "Cost (Vision)":
         elif "meta_json" not in df.columns:
             df["meta_json"] = "{}"
 
-        # siapkan series untuk id
         tx_series = df["tx_hash"] if "tx_hash" in df.columns else pd.Series("", index=df.index)
         fn_series = df["function_name"] if "function_name" in df.columns else pd.Series("", index=df.index)
         tx = tx_series.astype(str).fillna("")
         fn = fn_series.astype(str).fillna("")
 
-        # id: pakai yang ada; jika kosong → tx::function; jika masih kosong → hash
         if "id" in df.columns:
             df["id"] = df["id"].astype(str).fillna("").str.strip()
         else:
@@ -603,7 +601,6 @@ if page == "Cost (Vision)":
             )
             df.loc[still_empty, "id"] = "csv::" + unique_fallback[still_empty]
 
-        # pastikan semua kolom target ada
         cols = [
             "id","project","network","timestamp","tx_hash","contract","function_name",
             "block_number","gas_used","gas_price_wei","cost_eth","cost_idr","meta_json"
@@ -622,7 +619,6 @@ if page == "Cost (Vision)":
         net_series = df["network"] if "network" in df.columns else pd.Series("(Unknown)", index=df.index)
         df["network"] = net_series.fillna("(Unknown)")
 
-        # buang baris kosong banget
         keep_mask = (
             df["id"].ne("") |
             df["function_name"].astype(str).str.strip().ne("") |
@@ -633,7 +629,6 @@ if page == "Cost (Vision)":
         df = df[keep_mask].copy()
 
         return df[cols]
-    # -------- END map_csv_cost --------
 
     ing = 0
 
@@ -709,25 +704,19 @@ if page == "Cost (Vision)":
 
                 d["project"] = d.get("project")
                 d["project"] = d["project"].fillna("STC")
+ 
+                ts_raw = d.get("timestamp")
+                ts = pd.to_datetime(ts_raw, errors="coerce", utc=True)
+      
+                if hasattr(ts, "dt"):
+                    ts = ts.dt.tz_localize(None)
+                d["timestamp"] = ts.fillna(pd.Timestamp.utcnow())
 
-                ts_raw = df.get("timestamp")
-                if ts_raw is not None:
-                    ts_clean = (
-                        pd.Series(ts_raw, index=df.index)
-                          .astype(str)
-                          .str.strip()
-                          .str.replace(r"Z$", "+00:00", regex=True)
-                    )
-                    ts = pd.to_datetime(ts_clean, errors="coerce", utc=True, format="ISO8601")
-                    ts = ts.fillna(pd.to_datetime(ts_clean, errors="coerce", dayfirst=True, utc=True))
-                    df["timestamp"] = ts.dt.tz_localize(None)
-                else:
-                    df["timestamp"] = pd.NaT
                 for numc in ["block_number", "gas_used", "gas_price_wei", "cost_eth", "cost_idr"]:
                     d[numc] = pd.to_numeric(d[numc], errors="coerce")
 
                 ing += upsert("vision_costs", d, ["id"], cols)
-
+                
         # === CSV ingest ===
         if cs is not None:
             raw = read_csv_any(cs)
