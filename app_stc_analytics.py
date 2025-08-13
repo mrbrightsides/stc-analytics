@@ -468,50 +468,48 @@ def upsert(table: str, d: pd.DataFrame, key_cols: list, col_list: list | None = 
     if d is None or d.empty:
         return 0
 
-    # Tentukan kolom yang akan diinsert
-    use_cols = (col_list or d.columns.tolist())
-
-    # Validasi kolom
+    use_cols = col_list or d.columns.tolist()
     missing = [c for c in use_cols if c not in d.columns]
     if missing:
         raise ValueError(f"Missing columns for {table}: {missing}")
 
     d = d[use_cols].copy()
 
-    # Normalisasi key jadi string & trim
+    # --- NORMALISASI KEY KE STRING ---
     for k in key_cols:
         d[k] = d[k].astype(str).fillna("").str.strip()
 
-    # Buang duplikat berdasarkan key (ambil baris terakhir)
+    # --- DEDUP PER KEY (ambil terakhir) ---
     d = d.drop_duplicates(subset=key_cols, keep="last")
 
-    # Datetime tz-aware -> naive (TIMESTAMP tanpa TZ)
+    # --- NORMALISASI DATETIME: jadikan naive (tanpa TZ) ---
     for c in d.columns:
+        # kalau sudah tz-aware => buang TZ
         if pdt.is_datetime64tz_dtype(d[c]):
             d[c] = pd.to_datetime(d[c], errors="coerce").dt.tz_localize(None)
+        # kalau datetime tapi bukan tz => pastikan datetime
+        elif pdt.is_datetime64_any_dtype(d[c]):
+            d[c] = pd.to_datetime(d[c], errors="coerce")
+        # kalau masih string/object dan kelihatan kolom waktu => parse + buang TZ
+        elif pdt.is_object_dtype(d[c]) and c.lower() in ("timestamp","ts","time","created_at","updated_at"):
+            d[c] = pd.to_datetime(d[c], errors="coerce", utc=True).dt.tz_localize(None)
 
     col_list_sql = ", ".join(use_cols)
     key_list_sql = ", ".join(key_cols)
-    # join: table.k = s.k
     join_cond = " AND ".join([f"{table}.{k} = s.{k}" for k in key_cols])
 
     con = get_conn()
     try:
-        # Buat staging table dengan kolom yang SAMA persis seperti target (hanya kolom yang diinsert)
+        # stg schema identik (kolom yang diinsert saja)
         con.execute(f"CREATE TEMP TABLE stg AS SELECT {col_list_sql} FROM {table} LIMIT 0;")
-
-        # Register DF -> stg (pakai kolom eksplisit)
         con.register("df_stage", d)
         con.execute(f"INSERT INTO stg ({col_list_sql}) SELECT {col_list_sql} FROM df_stage;")
 
-        # Hapus baris target yang key-nya bentrok
         con.execute(f"""
             DELETE FROM {table}
             USING (SELECT DISTINCT {key_list_sql} FROM stg) AS s
             WHERE {join_cond};
         """)
-
-        # Insert baris baru dari stg -> target (pakai kolom eksplisit)
         con.execute(f"INSERT INTO {table} ({col_list_sql}) SELECT {col_list_sql} FROM stg;")
 
         n = con.execute("SELECT COUNT(*) FROM stg").fetchone()[0]
