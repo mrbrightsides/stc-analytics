@@ -1480,9 +1480,12 @@ elif page == "Performance (Bench)":
                 plot.sort_values("concurrency"),
                 x="concurrency", y="tps_avg", color="scenario",
                 markers=True, title="TPS vs Concurrency",
-                labels={"concurrency":"Concurrency","tps_avg":"TPS Avg","scenario":"Scenario"}
+                labels={"concurrency":"Concurrency","tps_avg":"TPS Avg","scenario":"Scenario"},
+                template="plotly_white",
+                color_discrete_sequence=px.colors.qualitative.Set2,
             )
             st.plotly_chart(fig, use_container_width=True)
+            fig_export_buttons(fig, "bench_tps_vs_concurrency")
         with c2:
             lat = plot.melt(
                 id_vars=["concurrency","scenario"],
@@ -1493,9 +1496,12 @@ elif page == "Performance (Bench)":
                 lat.sort_values("concurrency"),
                 x="concurrency", y="latency_ms", color="metric",
                 markers=True, title="Latency (p50/p95) vs Concurrency",
-                labels={"concurrency":"Concurrency","latency_ms":"Latency (ms)","metric":"Metric"}
+                labels={"concurrency":"Concurrency","latency_ms":"Latency (ms)","metric":"Metric"},
+                template="plotly_white",
+                color_discrete_sequence=px.colors.qualitative.Set2,
             )
             st.plotly_chart(fig, use_container_width=True)
+            fig_export_buttons(fig, "bench_latency_vs_concurrency")
 
         # ===== table =====
         st.markdown("### Detail Runs")
