@@ -494,65 +494,92 @@ page = st.sidebar.radio("Pilih tab", ["Cost (Vision)","Security (SWC)","Performa
 # -------------------------------
 # COST (Vision)
 # -------------------------------
-if page == "Cost (Vision)":
-    st.title("💰 Cost Analytics — STC Vision")
+def map_csv_cost(df_raw: pd.DataFrame) -> pd.DataFrame:
+    m = {
+        "Network": "network", "network": "network",
+        "Tx Hash": "tx_hash", "tx_hash": "tx_hash",
+        "From": "from_address", "from": "from_address",
+        "To": "to_address", "to": "to_address",
+        "Block": "block_number", "block": "block_number",
+        "Gas Used": "gas_used", "gas_used": "gas_used",
+        "Gas Price (Gwei)": "gas_price_gwei", "gas_price_gwei": "gas_price_gwei",
+        "Estimated Fee (ETH)": "cost_eth", "estimated_fee_eth": "cost_eth",
+        "Estimated Fee (Rp)": "cost_idr", "estimated_fee_rp": "cost_idr",
+        "Contract": "contract", "contract": "contract",
+        "Function": "function_name", "function": "function_name",
+        "Timestamp": "timestamp", "timestamp": "timestamp",
+        "Status": "status", "status": "status",
+        "id": "id",
+    }
+    df = df_raw.rename(columns=m, errors="ignore").copy()
 
-    # --- helper: mapping CSV Vision -> schema standar ---
-    def map_csv_cost(df_raw: pd.DataFrame) -> pd.DataFrame:
-        m = {
-            "Network":"network","Tx Hash":"tx_hash","From":"from_address","To":"to_address",
-            "Block":"block_number","Gas Used":"gas_used","Gas Price (Gwei)":"gas_price_gwei",
-            "Estimated Fee (ETH)":"cost_eth","Estimated Fee (Rp)":"cost_idr",
-            "Contract":"contract","Function":"function_name","Timestamp":"timestamp","Status":"status"
-        }
-        df = df_raw.rename(columns=m).copy()
-        df["project"] = "STC"
-        df["timestamp"] = pd.to_datetime(df.get("timestamp"), errors="coerce")
-        df["timestamp"] = df["timestamp"].fillna(pd.Timestamp.utcnow())
+    # default project
+    df["project"] = "STC"
 
-        # --- gas_price_wei: tahan kolom hilang ---
-        if "gas_price_gwei" in df.columns:
-            gwei_src = df["gas_price_gwei"]
-        else:
-            gwei_src = pd.Series(0, index=df.index, dtype="float64")
-        gwei = pd.to_numeric(gwei_src, errors="coerce").fillna(0)
-        df["gas_price_wei"] = (gwei * 1_000_000_000).round().astype("Int64")
+    ts = pd.to_datetime(df.get("timestamp"), errors="coerce", dayfirst=True)
+    df["timestamp"] = ts.fillna(pd.Timestamp.utcnow())
 
-        if "status" in df.columns:
-            df["meta_json"] = df["status"].astype(str).apply(lambda s: json.dumps({"status": s}) if s else "{}")
-        elif "meta_json" not in df.columns:
-            df["meta_json"] = "{}"
+    if "gas_price_gwei" in df.columns:
+        gwei_src = df["gas_price_gwei"]
+    else:
+        gwei_src = pd.Series(0, index=df.index, dtype="float64")
+    gwei = pd.to_numeric(gwei_src, errors="coerce").fillna(0)
+    df["gas_price_wei"] = (gwei * 1_000_000_000).round().astype("Int64")
 
-        # --- id: tahan kolom hilang ---
-        tx_series = df["tx_hash"] if "tx_hash" in df.columns else pd.Series("", index=df.index)
-        fn_series = df["function_name"] if "function_name" in df.columns else pd.Series("", index=df.index)
+    if "status" in df.columns:
+        df["meta_json"] = df["status"].astype(str).apply(lambda s: json.dumps({"status": s}) if s else "{}")
+    elif "meta_json" not in df.columns:
+        df["meta_json"] = "{}"
 
-        tx = tx_series.astype(str).fillna("")
-        fn = fn_series.astype(str).fillna("")
+    tx_series = df["tx_hash"] if "tx_hash" in df.columns else pd.Series("", index=df.index)
+    fn_series = df["function_name"] if "function_name" in df.columns else pd.Series("", index=df.index)
+    tx = tx_series.astype(str).fillna("")
+    fn = fn_series.astype(str).fillna("")
 
-        base_id = tx + "::" + fn
-        df["id"] = base_id
+    if "id" in df.columns:
+        df["id"] = df["id"].astype(str).fillna("").str.strip()
+    else:
+        df["id"] = ""
 
-        is_dummy = tx.eq("") | tx.str.contains(r"\.\.\.")
-        if is_dummy.any():
-            unique_fallback = (
-                df.astype(str).agg("|".join, axis=1)
-                .pipe(lambda s: s.str.encode("utf-8"))
-                .map(lambda b: hashlib.sha256(b).hexdigest())
-            )
-            df.loc[is_dummy, "id"] = "csv::" + unique_fallback[is_dummy].str.slice(0, 16)
+    need_id = df["id"].eq("")
+    base_id = (tx + "::" + fn).where(need_id, df["id"])
+    df["id"] = base_id
 
+    still_empty = df["id"].eq("")
+    if still_empty.any():
+        unique_fallback = (
+            df.astype(str)
+              .agg("|".join, axis=1)
+              .pipe(lambda s: s.str.encode("utf-8"))
+              .map(lambda b: hashlib.sha256(b).hexdigest())
+              .str.slice(0, 16)
+        )
+        df.loc[still_empty, "id"] = "csv::" + unique_fallback[still_empty]
 
-        cols = ["id","project","network","timestamp","tx_hash","contract","function_name",
-                "block_number","gas_used","gas_price_wei","cost_eth","cost_idr","meta_json"]
-        for c in cols:
-            if c not in df.columns:
-                df[c] = None
-        df["block_number"] = pd.to_numeric(df["block_number"], errors="coerce").astype("Int64")
-        df["gas_used"]     = pd.to_numeric(df["gas_used"], errors="coerce").astype("Int64")
-        df["cost_eth"]     = pd.to_numeric(df["cost_eth"], errors="coerce")
-        df["cost_idr"]     = pd.to_numeric(df["cost_idr"], errors="coerce")
-        return df[cols]
+    cols = [
+        "id","project","network","timestamp","tx_hash","contract","function_name",
+        "block_number","gas_used","gas_price_wei","cost_eth","cost_idr","meta_json"
+    ]
+    for c in cols:
+        if c not in df.columns:
+            df[c] = None
+
+    df["block_number"] = pd.to_numeric(df["block_number"], errors="coerce").astype("Int64")
+    df["gas_used"]     = pd.to_numeric(df["gas_used"], errors="coerce").astype("Int64")
+    df["cost_eth"]     = pd.to_numeric(df["cost_eth"], errors="coerce")
+    df["cost_idr"]     = pd.to_numeric(df["cost_idr"], errors="coerce")
+
+    df["network"] = df.get("network").fillna("(Unknown)")
+
+    keep_mask = (
+        df["id"].ne("") |
+        df["function_name"].astype(str).str.strip().ne("") |
+        df["gas_used"].fillna(0).ne(0) |
+        df["cost_eth"].fillna(0).ne(0) |
+        df["cost_idr"].fillna(0).ne(0)
+    )
+    df = df[keep_mask].copy()
+    return df[cols]
 
     ing = 0
 
