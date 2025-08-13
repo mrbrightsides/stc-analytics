@@ -98,8 +98,11 @@ def read_csv_any(uploaded):
     except Exception:
         # percobaan 2: paksa decode bytes → StringIO
         data = uploaded.getvalue() if hasattr(uploaded, "getvalue") else uploaded.read()
-        return pd.read_csv(io.StringIO(data.decode("utf-8", "ignore")),
-                           engine="python", on_bad_lines="skip")
+        return pd.read_csv(
+            io.StringIO(data.decode("utf-8", "ignore")),
+            engine="python",
+            on_bad_lines="skip"
+        )
 
 # -------------------------------
 # App & DB setup
@@ -420,36 +423,54 @@ def csv_bytes(df: pd.DataFrame) -> bytes:
 # Helpers (DB)
 # -------------------------------
 def upsert(table: str, df: pd.DataFrame, key_cols: list, cols: list) -> int:
+    """
+    Upsert sederhana: hapus baris yang key-nya sama dengan batch (stg), lalu insert.
+    Return: jumlah baris di staging (int).
+    """
     if df is None or df.empty:
         return 0
+
     missing = [c for c in cols if c not in df.columns]
     if missing:
         raise ValueError(f"Missing columns for {table}: {missing}")
 
     # Ambil urutan kolom tepat + bersihkan key
-
     d = df[cols].copy()
-
     for k in key_cols:
-
         d[k] = d[k].astype(str).fillna("").str.strip()
 
     # buang baris dg key kosong
-
     d = d[d[key_cols].apply(lambda r: all(bool(x) for x in r), axis=1)]
 
     # dedup di batch
-
     d = d.drop_duplicates(subset=key_cols, keep="last")
-    
-    con = get_conn()
-    con.execute(f"CREATE TEMP TABLE stg AS SELECT {', '.join(cols)} FROM {table} WITH NO DATA;")
-    con.register("df_stage", d)
-    # INSERT eksplisit nama kolom agar tak tergantung urutan
 
+    if d.empty:
+        return 0
+
+    con = get_conn()
     col_list = ", ".join(cols)
 
+    # staging mengikuti skema tabel target (agar tipe data selaras)
+    con.execute(f"CREATE TEMP TABLE stg AS SELECT {col_list} FROM {table} WITH NO DATA;")
+    con.register("df_stage", d)
     con.execute(f"INSERT INTO stg ({col_list}) SELECT {col_list} FROM df_stage;")
+
+    # hapus di target untuk key yang ada di staging
+    key_list = ", ".join(key_cols)
+    join_cond = " AND ".join([f"{table}.{k} = d.{k}" for k in key_cols])
+    con.execute(f"""
+        DELETE FROM {table}
+        USING (SELECT DISTINCT {key_list} FROM stg) d
+        WHERE {join_cond};
+    """)
+
+    # insert baru
+    con.execute(f"INSERT INTO {table} ({col_list}) SELECT {col_list} FROM stg;")
+
+    n = con.execute("SELECT COUNT(*) FROM stg").fetchone()[0]
+    con.close()
+    return int(n)
 
 # -------------------------------
 # Sidebar
@@ -485,10 +506,8 @@ if page == "Cost (Vision)":
             "Contract":"contract","Function":"function_name","Timestamp":"timestamp","Status":"status"
         }
         df = df_raw.rename(columns=m).copy()
-
         df["project"] = "STC"
         df["timestamp"] = pd.to_datetime(df.get("timestamp"), errors="coerce")
-
         df["timestamp"] = df["timestamp"].fillna(pd.Timestamp.utcnow())
 
         gwei = pd.to_numeric(df.get("gas_price_gwei", 0), errors="coerce").fillna(0)
@@ -496,33 +515,21 @@ if page == "Cost (Vision)":
 
         status_series = df.get("status")
         df["meta_json"] = (
-
             status_series.astype(str).apply(lambda s: json.dumps({"status": s}) if s else "{}")
-
             if status_series is not None else "{}"
-
         )
 
         tx = df.get("tx_hash").astype(str).fillna("")
-
         is_dummy = tx.eq("") | tx.str.contains(r"\.\.\.")
-
         base_id = tx + "::" + df.get("function_name", "").astype(str).fillna("")
-
         df["id"] = base_id
 
         if is_dummy.any():
-
             unique_fallback = (
-
                 df.astype(str).agg("|".join, axis=1)
-
                 .pipe(lambda s: s.str.encode("utf-8"))
-
                 .map(lambda b: hashlib.sha256(b).hexdigest())
-
             )
-
             df.loc[is_dummy, "id"] = "csv::" + unique_fallback[is_dummy].str.slice(0, 16)
 
         cols = ["id","project","network","timestamp","tx_hash","contract","function_name",
@@ -551,7 +558,6 @@ if page == "Cost (Vision)":
         # === Templates / samples ===
         tpl_cost = pd.DataFrame(columns=[
             "Network", "Tx Hash", "From", "To", "Block", "Gas Used", "Gas Price (Gwei)",
-
             "Estimated Fee (ETH)", "Estimated Fee (Rp)", "Contract", "Function", "Timestamp", "Status"
         ]).head(0)
         c1, c2 = st.columns(2)
@@ -566,13 +572,9 @@ if page == "Cost (Vision)":
         with c2:
             vision_sample_rows = [{
                 "id": "demo::bookHotel", "project": "STC", "network": "Sepolia",
-
                 "timestamp": "2025-08-12T09:45:00Z", "tx_hash": "0xabc123...",
-
                 "contract": "SmartReservation", "function_name": "bookHotel",
-
                 "block_number": 123456, "gas_used": 21000, "gas_price_wei": 22500000000,
-
                 "cost_eth": 0.0005, "cost_idr": 15000, "meta_json": "{\"status\":\"Success\"}"
             }]
             ndjson_bytes = ("\n".join(json.dumps(r) for r in vision_sample_rows)).encode("utf-8")
@@ -606,11 +608,8 @@ if page == "Cost (Vision)":
                         d["meta_json"] = "{}"
 
                 cols = [
-
                     "id", "project", "network", "timestamp", "tx_hash", "contract", "function_name",
-
                     "block_number", "gas_used", "gas_price_wei", "cost_eth", "cost_idr", "meta_json"
-
                 ]
                 for c in cols:
                     if c not in d.columns:
@@ -673,7 +672,6 @@ if page == "Cost (Vision)":
         df_base["fn_raw"] = df_base["function_name"]
         df_base["fn"] = df_base["fn_raw"].fillna(UNPARSED_LABEL).replace({"(unknown)": UNPARSED_LABEL})
         df_base["cost_idr_num"] = pd.to_numeric(df_base.get("cost_idr", 0), errors="coerce").fillna(0)
-
         df_base["gas_used_num"] = pd.to_numeric(df_base.get("gas_used", 0), errors="coerce").fillna(0)
         df_base["gas_price_num"] = pd.to_numeric(df_base.get("gas_price_wei", 0), errors="coerce").fillna(0)
 
@@ -926,7 +924,7 @@ elif page == "Security (SWC)":
                 {"finding_id":"SmartTourismToken::SWC-108::279","timestamp":"2025-08-10T16:20:00Z",
                  "network":"Arbitrum Sepolia","contract":"SmartTourismToken",
                  "file":"contracts/SmartTourismToken.sol","line_start":279,"line_end":288,"swc_id":"SWC-108",
-                 "title":"Potential issue SWC-108 detected","severity":"Medium","confidence":0.87,"status":"Fixed",
+                 "title":"Potential issue SWC-108 detected","severity":"Medium","confidence":0.87","status":"Fixed",
                  "remediation":"Refactor code and add checks","commit_hash":"0xc54f...54c8"},
             ]
             ndjson_bytes = ("\n".join(json.dumps(r) for r in sample_rows)).encode("utf-8")
