@@ -568,8 +568,9 @@ def map_csv_cost(df_raw: pd.DataFrame) -> pd.DataFrame:
     df["gas_used"]     = pd.to_numeric(df["gas_used"], errors="coerce").astype("Int64")
     df["cost_eth"]     = pd.to_numeric(df["cost_eth"], errors="coerce")
     df["cost_idr"]     = pd.to_numeric(df["cost_idr"], errors="coerce")
-
-    df["network"] = df.get("network").fillna("(Unknown)")
+    
+    net_series = df["network"] if "network" in df.columns else pd.Series("(Unknown)", index=df.index)
+    df["network"] = net_series.fillna("(Unknown)")
 
     keep_mask = (
         df["id"].ne("") |
@@ -905,7 +906,7 @@ def map_csv_cost(df_raw: pd.DataFrame) -> pd.DataFrame:
 # -------------------------------
 # SECURITY (SWC)
 # -------------------------------
-if page == "Security (SWC)":
+elif page == "Security (SWC)":
     st.title("🛡️ Security Analytics — STC for SWC")
 
     # --- mapping CSV/NDJSON -> schema + id fallback + dedup ---
