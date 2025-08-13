@@ -869,6 +869,8 @@ if page == "Cost (Vision)":
                     ts = ts.assign(cost_smooth=ts.groupby("network")[y].transform(lambda s: s.rolling(7, min_periods=1).mean()))
                     y = "cost_smooth"
                 show_median = st.checkbox("Tampilkan garis median", value=False)
+                tight_range = st.checkbox("Tight Y-range (tanpa 0)", value=True)
+                y_pad_pct = st.slider("Padding Y-axis (%)", 0, 25, 8, key="y_pad_pct") if tight_range else 0
                 fig = px.line(
                     ts, x="ts", y=y, color="network", markers=not do_smooth,
                     title="Biaya per Transaksi (Rp) vs Waktu",
@@ -876,7 +878,22 @@ if page == "Cost (Vision)":
                 )
                 if line_log:
                     fig.update_yaxes(type="log")
+
+                if show_median:
+                    med = pd.to_numeric(ts[y], errors="coerce").median()
+                    fig.add_hline(y=med, line_dash="dot",
+                                  annotation_text=f"Median: {med:,.0f} Rp",
+                                  annotation_position="top left")
+                if tight_range:
+                    yvals = pd.to_numeric(ts[y], errors="coerce").dropna()
+                    if not yvals.empty:
+                        ymin, ymax = float(yvals.min()), float(yvals.max())
+                        if ymin == ymax:  
+                            ymin *= 0.9; ymax *= 1.05
+                        pad = (ymax - ymin) * (y_pad_pct / 100.0)
+                        fig.update_yaxes(range=[max(0, ymin - pad), ymax + pad])
                 st.plotly_chart(fig, use_container_width=True)
+                fig_export_buttons(fig, "vision_cost_timeseries")
 
         with g2:
             by_fn = (
