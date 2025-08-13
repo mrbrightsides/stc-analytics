@@ -167,7 +167,7 @@ def render_cost_page():
     no_new_upload = (st.session_state.get("nd_cost") is None and st.session_state.get("csv_cost") is None)
     if no_new_upload and not want_load:
         st.info("Belum ada data cost untuk sesi ini. Upload NDJSON/CSV atau aktifkan ‘Load existing stored data’ di sidebar.")
-        run()
+        return()
 
     con = get_conn()
     df = con.execute("SELECT * FROM vision_costs ORDER BY timestamp DESC").df()
