@@ -711,8 +711,8 @@ if page == "Cost (Vision)":
                 d["project"] = d.get("project").fillna("STC").astype(str)
 
                 ts = pd.to_datetime(d["timestamp"], errors="coerce", utc=True)
-                d["timestamp"] = ts.dt.tz_localize(None).fillna(pd.Timestamp.utcnow())
-
+                d["timestamp"] = ts.dt.tz_convert(None).astype("datetime64[ns]")
+                d["timestamp"] = d["timestamp"].fillna(pd.Timestamp.utcnow())
                 d["block_number"]  = pd.to_numeric(d["block_number"], errors="coerce").astype("Int64")
                 d["gas_used"]      = pd.to_numeric(d["gas_used"], errors="coerce").astype("Int64")
                 d["gas_price_wei"] = pd.to_numeric(d["gas_price_wei"], errors="coerce").round().astype("Int64")
