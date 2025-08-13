@@ -3,8 +3,6 @@ import streamlit as st
 import duckdb
 import pandas as pd
 import plotly.express as px
-pio.templates.default = "plotly_white"
-DEFAULT_COLORS = px.colors.qualitative.Set2
 import json, re, hashlib
 from datetime import datetime
 from pathlib import Path
@@ -1262,7 +1260,8 @@ elif page == "Security (SWC)":
                 by_sev, x="sev", y="size", color="sev",
                 title="Findings by Severity",
                 labels={"sev":"Severity", "size":"Count"},
-                color_discrete_sequence=DEFAULT_COLORS
+                template="plotly_white",
+                color_discrete_sequence=px.colors.qualitative.Set2,
             )
             fig.update_xaxes(categoryorder="array", categoryarray=["Critical","High","Medium","Low","(unknown)"])
             st.plotly_chart(fig, use_container_width=True)
