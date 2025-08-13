@@ -688,11 +688,17 @@ if page == "Cost (Vision)":
                 d = pd.DataFrame(rows)
                 if "id" not in d.columns:
                     d["id"] = d.apply(lambda r: f"{r.get('tx_hash','')}::{(r.get('function_name') or '')}".strip(), axis=1)
+                d["id"] = d["id"].astype(str).fillna("").str.strip()
                 if "meta_json" not in d.columns:
-                    if "meta" in d.columns:
-                        d["meta_json"] = d["meta"].apply(lambda x: json.dumps(x) if isinstance(x, dict) else (x if x else "{}"))
-                    else:
-                        d["meta_json"] = "{}"
+                    d["meta_json"] = d["meta_json"].apply(
+                        lambda x: json.dumps(x) if isinstance(x, (dict, list)) else (str(x) if x is not None else "{}")
+                    )
+                elif "meta" in d.columns:
+                    d["meta_json"] = d["meta"].apply(
+                        lambda x: json.dumps(x) if isinstance(x, (dict, list)) else (str(x) if x else "{}")
+                    )
+                else:
+                    d["meta_json"] = "{}"
 
                 cols = [
                     "id", "project", "network", "timestamp", "tx_hash", "contract", "function_name",
@@ -702,18 +708,29 @@ if page == "Cost (Vision)":
                     if c not in d.columns:
                         d[c] = None
 
-                d["project"] = d.get("project")
-                d["project"] = d["project"].fillna("STC")
- 
-                ts_raw = d.get("timestamp")
-                ts = pd.to_datetime(ts_raw, errors="coerce", utc=True)
-      
-                if hasattr(ts, "dt"):
-                    ts = ts.dt.tz_localize(None)
-                d["timestamp"] = ts.fillna(pd.Timestamp.utcnow())
+                d["project"] = d.get("project").fillna("STC").astype(str)
 
-                for numc in ["block_number", "gas_used", "gas_price_wei", "cost_eth", "cost_idr"]:
-                    d[numc] = pd.to_numeric(d[numc], errors="coerce")
+                ts = pd.to_datetime(d["timestamp"], errors="coerce", utc=True)
+                d["timestamp"] = ts.dt.tz_localize(None).fillna(pd.Timestamp.utcnow())
+
+                d["block_number"]  = pd.to_numeric(d["block_number"], errors="coerce").astype("Int64")
+                d["gas_used"]      = pd.to_numeric(d["gas_used"], errors="coerce").astype("Int64")
+                d["gas_price_wei"] = pd.to_numeric(d["gas_price_wei"], errors="coerce").round().astype("Int64")
+                d["cost_eth"]      = pd.to_numeric(d["cost_eth"], errors="coerce")
+                d["cost_idr"]      = pd.to_numeric(d["cost_idr"], errors="coerce")
+
+                d["network"]       = d.get("network").astype(str).replace({"nan": None}).fillna("(Unknown)")
+                d["contract"]      = d.get("contract").astype(str)
+                d["function_name"] = d.get("function_name").astype(str)
+
+                keep_mask = (
+                    d["id"].ne("") |
+                    d["function_name"].astype(str).str.strip().ne("") |
+                    d["gas_used"].fillna(0).ne(0) |
+                    d["cost_eth"].fillna(0).ne(0) |
+                    d["cost_idr"].fillna(0).ne(0)
+                )
+                d = d[keep_mask].copy()
 
                 ing += upsert("vision_costs", d, ["id"], cols)
                 
