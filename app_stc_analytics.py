@@ -441,7 +441,7 @@ def fig_export_buttons(fig, base_name: str):
             use_container_width=True,
         )
     except Exception:
-        c2.caption()
+        c2.caption
 
 def mark_outliers_iqr(series: pd.Series) -> pd.Series:
     
