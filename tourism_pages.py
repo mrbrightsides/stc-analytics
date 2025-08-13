@@ -298,7 +298,10 @@ def render_cost_page():
     df["gas_price_wei"] = (gwei * 1_000_000_000).round().astype("Int64")
 
     status_series = df.get("status")
-    df["meta_json"] = status_series.astype(str).apply(lambda s: json.dumps({"status": s}) if s else "{}") if status_series is not None else "{}"
+    df["meta_json"] = (
+        status_series.astype(str).apply(lambda s: json.dumps({"status": s}) if s else "{}")
+        if status_series is not None else "{}"
+    )
 
     # --- ID aman: jika tx_hash dummy/kosong, pakai hash baris + index
     tx = df.get("tx_hash").astype(str).fillna("")
@@ -307,7 +310,7 @@ def render_cost_page():
     df["id"] = base_id
     if is_dummy.any():
         unique_fallback = (
-            df.astype(str).agg("|".join, axis=1)  # gabung semua kolom jadi string
+            df.astype(str).agg("|".join, axis=1)
             .pipe(lambda s: s.str.encode("utf-8"))
             .map(lambda b: hashlib.sha256(b).hexdigest())
         )
@@ -324,7 +327,6 @@ def render_cost_page():
     df["cost_eth"]     = pd.to_numeric(df["cost_eth"], errors="coerce")
     df["cost_idr"]     = pd.to_numeric(df["cost_idr"], errors="coerce")
 
-    # dedup keamanan
     df = df.drop_duplicates(subset=["id"], keep="last")
     return df[cols]
 
@@ -662,6 +664,7 @@ def render_swc_page():
     for c in cols:
         if c not in df.columns:
             df[c] = None
+
     # tipisasi
     df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce").fillna(pd.Timestamp.utcnow())
     for ic in ["line_start","line_end"]:
@@ -675,9 +678,11 @@ def render_swc_page():
         df.get("swc_id", "").astype(str).fillna("") + "|" +
         df.get("line_start").astype(str).fillna("") + "|" +
         df.get("title", "").astype(str).fillna("") + "|" +
-        pd.Series(range(len(df))).astype(str)   # baris-idx untuk dummy data
+        pd.Series(range(len(df)), index=df.index).astype(str)
     )
-    fallback = raw_key.str.encode("utf-8").map(lambda b: hashlib.sha256(b).hexdigest().upper().str[:16])
+    fallback = raw_key.str.encode("utf-8").map(
+        lambda b: hashlib.sha256(b).hexdigest().upper()[:16]
+    )
     fallback = "SWC::" + fallback
 
     fid = df.get("finding_id")
@@ -688,7 +693,6 @@ def render_swc_page():
         mask_empty = fid.isna() | fid.str.strip().eq("")
         df.loc[mask_empty, "finding_id"] = fallback[mask_empty]
 
-    # dedup by finding_id (keep last)
     df = df.drop_duplicates(subset=["finding_id"], keep="last").copy()
     return df[cols]
 
