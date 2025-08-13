@@ -954,6 +954,8 @@ if page == "Cost (Vision)":
                     title="Total Biaya per Function (Rp) — Top 15",
                     labels={"fn": "Function", "cost_idr_num": "Total Biaya (Rp)"},
                     color_discrete_map={UNPARSED_LABEL: "#F59E0B"},
+                    template="plotly_white",
+                    color_discrete_sequence=px.colors.qualitative.Set2,
                 )
                 fig.update_xaxes(categoryorder="total descending")
                 st.plotly_chart(fig, use_container_width=True)
