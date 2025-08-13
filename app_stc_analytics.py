@@ -419,29 +419,36 @@ def csv_bytes(df: pd.DataFrame) -> bytes:
     df.to_csv(buff, index=False)
     return buff.getvalue().encode("utf-8")
 
+def _keyify(name: str) -> str:
+    return hashlib.sha1(name.encode("utf-8")).hexdigest()[:8]
 def fig_export_buttons(fig, base_name: str) -> None:
-
-    c1, c2 = st.columns(2)
     html = fig.to_html(include_plotlyjs="cdn", full_html=False)
-    c1.download_button(
-        "⬇️ Export chart (HTML)",
-        data=html.encode("utf-8"),
-        file_name=f"{base_name}.html",
-        mime="text/html",
-        use_container_width=True,
-    )
-    try:
-        import plotly.io as pio
-        png_bytes = pio.to_image(fig, format="png")  
-        c2.download_button(
-            "⬇️ Export PNG",
-            data=png_bytes,
-            file_name=f"{base_name}.png",
-            mime="image/png",
+    k = _keyify(base_name)
+    c1, c2 = st.columns(2)
+    
+    with c1:
+        st.download_button(
+            "⬇️ Export chart (HTML)",
+            data=html.encode("utf-8"),
+            file_name=f"{base_name}.html",
+            mime="text/html",
+            key=f"dl_html_{k}",
             use_container_width=True,
         )
-    except Exception:
-        c2.caption
+    with c2:
+        try:
+            import plotly.io as pio
+            png_bytes = pio.to_image(fig, format="png")  
+            c2.download_button(
+                "⬇️ Export PNG",
+                data=png_bytes,
+                file_name=f"{base_name}.png",
+                mime="image/png",
+                key=f"dl_png_{k}",
+                use_container_width=True,
+            )
+        except Exception:
+            c2.caption()
 
 def mark_outliers_iqr(series: pd.Series) -> pd.Series:
     
