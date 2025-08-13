@@ -551,8 +551,10 @@ if page == "Cost (Vision)":
         df["project"] = "STC"
 
         ts_src = df["timestamp"] if "timestamp" in df.columns else pd.Series(pd.NaT, index=df.index)
-        ts = pd.to_datetime(ts_src, errors="coerce", dayfirst=True)
-        df["timestamp"] = ts.fillna(pd.Timestamp.utcnow())
+        df["timestamp"] = (
+            pd.to_datetime(df.get("timestamp"), errors="coerce", dayfirst=True, utc=True)
+              .dt.tz_localize(None)
+        )
 
         if "gas_price_gwei" in df.columns:
             gwei_src = df["gas_price_gwei"]
@@ -697,7 +699,10 @@ if page == "Cost (Vision)":
                         d[c] = None
 
                 d["project"]   = d.get("project").fillna("STC")
-                d["timestamp"] = pd.to_datetime(d["timestamp"], errors="coerce").fillna(pd.Timestamp.utcnow())
+                d["timestamp"] = (
+                    pd.to_datetime(d["timestamp"], errors="coerce", utc=True)
+                      .dt.tz_localize(None)
+                )
                 for numc in ["block_number", "gas_used", "gas_price_wei", "cost_eth", "cost_idr"]:
                     d[numc] = pd.to_numeric(d[numc], errors="coerce")
 
@@ -1255,7 +1260,10 @@ elif page == "Performance (Bench)":
                 for c in cols:
                     if c not in d.columns:
                         d[c] = None
-                d["timestamp"] = pd.to_datetime(d["timestamp"], errors="coerce").fillna(pd.Timestamp.utcnow())
+                d["timestamp"] = (
+                    pd.to_datetime(d["timestamp"], errors="coerce", utc=True)
+                      .dt.tz_localize(None)
+                )
                 n = upsert("bench_runs", d, ["run_id"], cols)
                 st.success(f"{n} baris masuk ke bench_runs.")
 
