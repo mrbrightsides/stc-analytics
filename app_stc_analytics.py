@@ -924,7 +924,7 @@ elif page == "Security (SWC)":
                 {"finding_id":"SmartTourismToken::SWC-108::279","timestamp":"2025-08-10T16:20:00Z",
                  "network":"Arbitrum Sepolia","contract":"SmartTourismToken",
                  "file":"contracts/SmartTourismToken.sol","line_start":279,"line_end":288,"swc_id":"SWC-108",
-                 "title":"Potential issue SWC-108 detected","severity":"Medium","confidence":0.87","status":"Fixed",
+                 "title":"Potential issue SWC-108 detected","severity":"Medium","confidence":0.87,"status":"Fixed",
                  "remediation":"Refactor code and add checks","commit_hash":"0xc54f...54c8"},
             ]
             ndjson_bytes = ("\n".join(json.dumps(r) for r in sample_rows)).encode("utf-8")
