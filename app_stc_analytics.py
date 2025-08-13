@@ -28,7 +28,7 @@ tool_choice = st.radio("Tools", TOOLS, horizontal=True, key=f"tools_nav_main_{mo
 if module_choice == "Tourism":
     render_tourism_sidebar()
     t1, t2, t3 = st.tabs(["Cost (Vision)", "Security (SWC)", "Performance (Bench)"])
-    with t1: render_cost_page()
+     with t1: render_cost_page()
     with t2: render_swc_page()
     with t3: render_bench_page()
 else:
