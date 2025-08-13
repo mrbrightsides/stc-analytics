@@ -46,10 +46,6 @@ elif tool_choice == "Test":
 else:
     contract_tool()
 
-st.divider()
-TOOLS = ["Scan", "Test", "Contract"]
-tool_choice = st.radio("Tools", TOOLS, horizontal=True, key="tool_choice")
-
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 
 def _file_hash(p: Path) -> str:
