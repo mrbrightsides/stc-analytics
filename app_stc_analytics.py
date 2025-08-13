@@ -464,75 +464,58 @@ def mark_outliers_iqr(series: pd.Series) -> pd.Series:
 import pandas as pd
 from pandas.api import types as pdt
 
-def upsert(table: str, df: pd.DataFrame, key_cols: list, col_list: list | None = None) -> int:
-    """
-    Upsert ke DuckDB:
-      - Validasi kolom (kalau col_list diberikan)
-      - Bersihkan key cols (string, strip)
-      - Drop duplikat per key (keep='last')
-      - Normalisasi semua datetime ke naive (UTC tz removed)
-      - Masukkan ke temp staging lalu DELETE/INSERT (upsert)
-    """
-    if df is None or df.empty:
+def upsert(table: str, d: pd.DataFrame, key_cols: list, col_list: list | None = None) -> int:
+    if d is None or d.empty:
         return 0
 
-    # Pastikan key columns ada
-    for k in key_cols:
-        if k not in df.columns:
-            df[k] = ""
+    # Tentukan kolom yang akan diinsert
+    use_cols = (col_list or d.columns.tolist())
 
-    # Pakai urutan kolom target yang kamu inginkan
-    if col_list is None:
-        col_list = df.columns.tolist()
-    else:
-        missing = [c for c in col_list if c not in df.columns]
-        if missing:
-            raise ValueError(f"Missing columns for {table}: {missing}")
+    # Validasi kolom
+    missing = [c for c in use_cols if c not in d.columns]
+    if missing:
+        raise ValueError(f"Missing columns for {table}: {missing}")
 
-    d = df[col_list].copy()
+    d = d[use_cols].copy()
 
-    # Kunci sebagai string bersih
+    # Normalisasi key jadi string & trim
     for k in key_cols:
         d[k] = d[k].astype(str).fillna("").str.strip()
 
-    # --- NORMALISASI DATETIME ---
-    for c in d.columns:
-        s = d[c]
-        # tz-aware -> UTC -> naive
-        if pdt.is_datetime64tz_dtype(s):
-            d[c] = s.dt.tz_convert("UTC").dt.tz_localize(None)
-        # sudah datetime naive -> biarkan
-        elif pdt.is_datetime64_dtype(s):
-            pass
-        # kolom object yang mungkin string ISO8601 (mis. '2025-08-12T09:45:00Z')
-        elif pdt.is_object_dtype(s):
-            parsed = pd.to_datetime(s, errors="coerce", utc=True)
-            if pdt.is_datetime64_any_dtype(parsed):
-                d[c] = parsed.dt.tz_localize(None)
-
-    # Drop duplikat per key (ambil baris terakhir)
+    # Buang duplikat berdasarkan key (ambil baris terakhir)
     d = d.drop_duplicates(subset=key_cols, keep="last")
+
+    # Datetime tz-aware -> naive (TIMESTAMP tanpa TZ)
+    for c in d.columns:
+        if pdt.is_datetime64tz_dtype(d[c]):
+            d[c] = pd.to_datetime(d[c], errors="coerce").dt.tz_localize(None)
+
+    col_list_sql = ", ".join(use_cols)
+    key_list_sql = ", ".join(key_cols)
+    # join: table.k = s.k
+    join_cond = " AND ".join([f"{table}.{k} = s.{k}" for k in key_cols])
 
     con = get_conn()
     try:
-        # Buat staging table dengan bentuk yang sama
-        con.execute(f"CREATE TEMP TABLE stg AS SELECT * FROM {table} WITH NO DATA;")
-        con.register("df_stage", d[col_list])
-        con.execute("INSERT INTO stg SELECT * FROM df_stage;")
+        # Buat staging table dengan kolom yang SAMA persis seperti target (hanya kolom yang diinsert)
+        con.execute(f"CREATE TEMP TABLE stg AS SELECT {col_list_sql} FROM {table} LIMIT 0;")
 
-        key_list = ", ".join(key_cols)
-        join_cond = " AND ".join([f"{table}.{k} = d.{k}" for k in key_cols])
+        # Register DF -> stg (pakai kolom eksplisit)
+        con.register("df_stage", d)
+        con.execute(f"INSERT INTO stg ({col_list_sql}) SELECT {col_list_sql} FROM df_stage;")
 
-        # Upsert: hapus yang key-nya sudah ada, lalu insert staging
+        # Hapus baris target yang key-nya bentrok
         con.execute(f"""
             DELETE FROM {table}
-            USING (SELECT DISTINCT {key_list} FROM stg) d
+            USING (SELECT DISTINCT {key_list_sql} FROM stg) AS s
             WHERE {join_cond};
         """)
-        con.execute(f"INSERT INTO {table} SELECT * FROM stg;")
+
+        # Insert baris baru dari stg -> target (pakai kolom eksplisit)
+        con.execute(f"INSERT INTO {table} ({col_list_sql}) SELECT {col_list_sql} FROM stg;")
 
         n = con.execute("SELECT COUNT(*) FROM stg").fetchone()[0]
-        return int(n)
+        return n
     finally:
         con.close()
 
