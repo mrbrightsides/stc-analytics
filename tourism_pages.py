@@ -283,10 +283,10 @@ def render_cost_page():
     # --- helper: mapping CSV Vision -> schema standar ---
     def map_csv_cost(df_raw: pd.DataFrame) -> pd.DataFrame:
     m = {
-        "Network":"network","Tx Hash":"tx_hash","From":"from_address","To":"to_address",
-        "Block":"block_number","Gas Used":"gas_used","Gas Price (Gwei)":"gas_price_gwei",
-        "Estimated Fee (ETH)":"cost_eth","Estimated Fee (Rp)":"cost_idr",
-        "Contract":"contract","Function":"function_name","Timestamp":"timestamp","Status":"status"
+        "Network": "network", "Tx Hash": "tx_hash", "From": "from_address", "To": "to_address",
+        "Block": "block_number", "Gas Used": "gas_used", "Gas Price (Gwei)": "gas_price_gwei",
+        "Estimated Fee (ETH)": "cost_eth", "Estimated Fee (Rp)": "cost_idr",
+        "Contract": "contract", "Function": "function_name", "Timestamp": "timestamp", "Status": "status"
     }
     df = df_raw.rename(columns=m).copy()
 
@@ -299,9 +299,7 @@ def render_cost_page():
 
     status_series = df.get("status")
     if status_series is not None:
-        df["meta_json"] = status_series.astype(str).apply(
-            lambda s: json.dumps({"status": s}) if s else "{}"
-        )
+        df["meta_json"] = status_series.astype(str).apply(lambda s: json.dumps({"status": s}) if s else "{}")
     else:
         df["meta_json"] = "{}"
 
@@ -318,16 +316,16 @@ def render_cost_page():
         )
         df.loc[is_dummy, "id"] = "csv::" + unique_fallback[is_dummy].str.slice(0, 16)
 
-    cols = ["id","project","network","timestamp","tx_hash","contract","function_name",
-            "block_number","gas_used","gas_price_wei","cost_eth","cost_idr","meta_json"]
+    cols = ["id", "project", "network", "timestamp", "tx_hash", "contract", "function_name",
+            "block_number", "gas_used", "gas_price_wei", "cost_eth", "cost_idr", "meta_json"]
     for c in cols:
         if c not in df.columns:
             df[c] = None
 
     df["block_number"] = pd.to_numeric(df["block_number"], errors="coerce").astype("Int64")
-    df["gas_used"]     = pd.to_numeric(df["gas_used"], errors="coerce").astype("Int64")
-    df["cost_eth"]     = pd.to_numeric(df["cost_eth"], errors="coerce")
-    df["cost_idr"]     = pd.to_numeric(df["cost_idr"], errors="coerce")
+    df["gas_used"] = pd.to_numeric(df["gas_used"], errors="coerce").astype("Int64")
+    df["cost_eth"] = pd.to_numeric(df["cost_eth"], errors="coerce")
+    df["cost_idr"] = pd.to_numeric(df["cost_idr"], errors="coerce")
 
     df = df.drop_duplicates(subset=["id"], keep="last")
     return df[cols]
