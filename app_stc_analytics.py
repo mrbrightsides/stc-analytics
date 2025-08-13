@@ -461,53 +461,52 @@ def mark_outliers_iqr(series: pd.Series) -> pd.Series:
 # -------------------------------
 # Helpers (DB)
 # -------------------------------
-def upsert(table: str, df: pd.DataFrame, key_cols: list, cols: list) -> int:
-    
-    if df is None or df.empty:
+def upsert(table, d, key_cols, col_list=None):
+    if d is None or d.empty:
         return 0
 
-    missing = [c for c in cols if c not in df.columns]
-    if missing:
-        raise ValueError(f"Missing columns for {table}: {missing}")
+    # Validasi kolom bila col_list diberikan
+    if col_list:
+        missing = [c for c in col_list if c not in d.columns]
+        if missing:
+            raise ValueError(f"Missing columns for {table}: {missing}")
 
-    d = df[cols].copy()
+    d = d.copy()
+
+    # Kunci sebagai string bersih
     for k in key_cols:
         d[k] = d[k].astype(str).fillna("").str.strip()
 
-    d = d[d[key_cols].apply(lambda r: all(bool(x) for x in r), axis=1)]
-
+    # Hilangkan duplikat per key (ambil yang terakhir)
     d = d.drop_duplicates(subset=key_cols, keep="last")
 
-    if d.empty:
-        return 0
+    # Normalisasi datetime tz-aware -> naive
+    for c in d.columns:
+        if str(d[c].dtype).startswith("datetime64[ns,"):
+            d[c] = d[c].dt.tz_localize(None)
 
+    use_cols = col_list if col_list else d.columns.tolist()
     con = get_conn()
-    col_list = ", ".join(cols)
+    try:
+        con.execute(f"CREATE TEMP TABLE stg AS SELECT * FROM {table} WITH NO DATA;")
+        con.register("df_stage", d[use_cols])
+        con.execute("INSERT INTO stg SELECT * FROM df_stage;")
 
-    def upsert(table, d, key_cols, col_list=None):
-        d = d.copy()
-    # normalkan kolom datetime timezone-aware jadi naive
-        for c in d.columns:
-            if str(d[c].dtype).startswith("datetime64[ns,"):
-                d[c] = d[c].dt.tz_localize(None)
-    
-    con.execute(f"CREATE TEMP TABLE stg AS SELECT {col_list} FROM {table} WITH NO DATA;")
-    con.register("df_stage", d)
-    con.execute(f"INSERT INTO stg ({col_list}) SELECT {col_list} FROM df_stage;")
+        key_list = ", ".join(key_cols)
+        join_cond = " AND ".join([f"{table}.{k} = d.{k}" for k in key_cols])
 
-    key_list = ", ".join(key_cols)
-    join_cond = " AND ".join([f"{table}.{k} = d.{k}" for k in key_cols])
-    con.execute(f"""
-        DELETE FROM {table}
-        USING (SELECT DISTINCT {key_list} FROM stg) d
-        WHERE {join_cond};
-    """)
+        con.execute(f"""
+            DELETE FROM {table}
+            USING (SELECT DISTINCT {key_list} FROM stg) d
+            WHERE {join_cond};
+        """)
+        con.execute(f"INSERT INTO {table} SELECT * FROM stg;")
 
-    con.execute(f"INSERT INTO {table} ({col_list}) SELECT {col_list} FROM stg;")
+        n = con.execute("SELECT COUNT(*) FROM stg").fetchone()[0]
+        return n
+    finally:
+        con.close()
 
-    n = con.execute("SELECT COUNT(*) FROM stg").fetchone()[0]
-    con.close()
-    return int(n)
 
 # -------------------------------
 # Sidebar
