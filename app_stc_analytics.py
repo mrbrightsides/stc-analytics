@@ -949,6 +949,30 @@ if page == "Cost (Vision)":
             if scatter_scale in ("log y", "log x & y"):
                 fig.update_yaxes(type="log")
             st.plotly_chart(fig, use_container_width=True)
+            fig_export_buttons(fig, "vision_gas_vs_price")
+
+            topn = st.slider("Tampilkan Top N transaksi berdasarkan biaya (Rp)", 5, 50, 15, key="topn_cost")
+            top_tbl = sc.sort_values("cost_idr_num", ascending=False).head(topn)
+            st.markdown("#### 💸 Top transaksi berdasarkan biaya (Rp)")
+            st.dataframe(
+                top_tbl[["timestamp","network","contract","fn","tx_short","cost_idr_num","explorer_url"]],
+                use_container_width=True,
+                column_config={
+                    "tx_short": "Tx (short)",
+                    "fn": "Function",
+                    "cost_idr_num": st.column_config.NumberColumn("Biaya (Rp)", format="%,d"),
+                    "timestamp": st.column_config.DatetimeColumn("Waktu"),
+                    "explorer_url": st.column_config.LinkColumn("Explorer", display_text="Open"),
+                },
+                hide_index=True,
+            )
+            st.download_button(
+                "⬇️ Download Top transaksi (CSV)",
+                data=csv_bytes(top_tbl.drop(columns=["gas_used_str","gas_price_str"], errors="ignore")),
+                file_name="vision_top_cost.csv",
+                mime="text/csv",
+                use_container_width=True,
+            )
 
         # Tabel Unparsed
         unparsed = df_base[df_base["fn"] == UNPARSED_LABEL].copy()
