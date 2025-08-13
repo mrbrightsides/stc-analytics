@@ -237,23 +237,25 @@ def upsert(table: str, df: pd.DataFrame, key_cols: list, cols: list) -> int:
     if missing:
         raise ValueError(f"Missing columns for {table}: {missing}")
 
-    # 1) Ambil kolom yang dipakai + bersihin key
+    # Ambil urutan kolom tepat + bersihkan key
     d = df[cols].copy()
     for k in key_cols:
-        # key wajib string non-null, trim spasi
         d[k] = d[k].astype(str).fillna("").str.strip()
-    # Buang baris yang key-nya kosong
+    # buang baris dg key kosong
     d = d[d[key_cols].apply(lambda r: all(bool(x) for x in r), axis=1)]
-    # 2) Dedup di batch upload (keep last)
+    # dedup di batch
     d = d.drop_duplicates(subset=key_cols, keep="last")
 
     con = get_conn()
-    # Temp staging sesuai struktur table
+    # temp table mengikuti schema dan order kolom table target
     con.execute(f"CREATE TEMP TABLE stg AS SELECT {', '.join(cols)} FROM {table} WITH NO DATA;")
     con.register("df_stage", d)
-    con.execute("INSERT INTO stg SELECT * FROM df_stage;")
 
-    # 3) Dedup lagi di sisi DuckDB untuk jaga-jaga
+    # INSERT eksplisit nama kolom agar tak tergantung urutan
+    col_list = ", ".join(cols)
+    con.execute(f"INSERT INTO stg ({col_list}) SELECT {col_list} FROM df_stage;")
+
+    # dedup sekali lagi di sisi DB (safety net)
     part = ", ".join(key_cols)
     con.execute(f"""
         CREATE TEMP TABLE stg_dedup AS
@@ -265,10 +267,9 @@ def upsert(table: str, df: pd.DataFrame, key_cols: list, cols: list) -> int:
         WHERE rn = 1;
     """)
 
-    # 4) Hapus yang bentrok di tabel target, lalu insert hasil dedup
     where = " AND ".join([f"{table}.{k}=stg_dedup.{k}" for k in key_cols])
     con.execute(f"DELETE FROM {table} USING stg_dedup WHERE {where};")
-    con.execute(f"INSERT INTO {table} SELECT {', '.join(cols)} FROM stg_dedup;")
+    con.execute(f"INSERT INTO {table} SELECT {col_list} FROM stg_dedup;")
     n = con.execute("SELECT COUNT(*) FROM stg_dedup").fetchone()[0]
     con.close()
     return n
@@ -281,43 +282,51 @@ def render_cost_page():
 
     # --- helper: mapping CSV Vision -> schema standar ---
     def map_csv_cost(df_raw: pd.DataFrame) -> pd.DataFrame:
-        m = {
-            "Network": "network", "Tx Hash": "tx_hash", "From": "from_address", "To": "to_address",
-            "Block": "block_number", "Gas Used": "gas_used", "Gas Price (Gwei)": "gas_price_gwei",
-            "Estimated Fee (ETH)": "cost_eth", "Estimated Fee (Rp)": "cost_idr",
-            "Contract": "contract", "Function": "function_name", "Timestamp": "timestamp", "Status": "status"
-        }
-        df = df_raw.rename(columns=m).copy()
+    m = {
+        "Network":"network","Tx Hash":"tx_hash","From":"from_address","To":"to_address",
+        "Block":"block_number","Gas Used":"gas_used","Gas Price (Gwei)":"gas_price_gwei",
+        "Estimated Fee (ETH)":"cost_eth","Estimated Fee (Rp)":"cost_idr",
+        "Contract":"contract","Function":"function_name","Timestamp":"timestamp","Status":"status"
+    }
+    df = df_raw.rename(columns=m).copy()
 
-        df["project"] = "STC"
-        if "timestamp" in df.columns:
-            df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce").fillna(pd.Timestamp.utcnow())
-        else:
-            df["timestamp"] = pd.Timestamp.utcnow()
+    df["project"] = "STC"
+    df["timestamp"] = pd.to_datetime(df.get("timestamp"), errors="coerce")
+    df["timestamp"] = df["timestamp"].fillna(pd.Timestamp.utcnow())
 
-        gwei = pd.to_numeric(df.get("gas_price_gwei", 0), errors="coerce").fillna(0)
-        df["gas_price_wei"] = (gwei * 1_000_000_000).round().astype("Int64")
+    gwei = pd.to_numeric(df.get("gas_price_gwei", 0), errors="coerce").fillna(0)
+    df["gas_price_wei"] = (gwei * 1_000_000_000).round().astype("Int64")
 
-        status_series = df.get("status")
-        if status_series is not None:
-            df["meta_json"] = status_series.astype(str).apply(lambda s: json.dumps({"status": s}) if s else "{}")
-        else:
-            df["meta_json"] = "{}"
+    status_series = df.get("status")
+    df["meta_json"] = status_series.astype(str).apply(lambda s: json.dumps({"status": s}) if s else "{}") if status_series is not None else "{}"
 
-        df["id"] = df.apply(lambda r: f"{r.get('tx_hash','')}::{(r.get('function_name') or '')}".strip(), axis=1)
+    # --- ID aman: jika tx_hash dummy/kosong, pakai hash baris + index
+    tx = df.get("tx_hash").astype(str).fillna("")
+    is_dummy = tx.eq("") | tx.str.contains(r"\.\.\.")
+    base_id = tx + "::" + df.get("function_name", "").astype(str).fillna("")
+    df["id"] = base_id
+    if is_dummy.any():
+        unique_fallback = (
+            df.astype(str).agg("|".join, axis=1)  # gabung semua kolom jadi string
+            .pipe(lambda s: s.str.encode("utf-8"))
+            .map(lambda b: hashlib.sha256(b).hexdigest())
+        )
+        df.loc[is_dummy, "id"] = "csv::" + unique_fallback[is_dummy].str.slice(0, 16)
 
-        cols = [
-            "id", "project", "network", "timestamp", "tx_hash", "contract", "function_name",
-            "block_number", "gas_used", "gas_price_wei", "cost_eth", "cost_idr", "meta_json"
-        ]
-        for c in cols:
-            if c not in df.columns:
-                df[c] = None
-        df["block_number"] = pd.to_numeric(df["block_number"], errors="coerce").astype("Int64")
-        df["gas_used"] = pd.to_numeric(df["gas_used"], errors="coerce").astype("Int64")
-        df["cost_eth"] = pd.to_numeric(df["cost_eth"], errors="coerce")
-        df["cost_idr"] = pd.to_numeric(df["cost_idr"], errors="coerce")
-        return df[cols]
+    cols = ["id","project","network","timestamp","tx_hash","contract","function_name",
+            "block_number","gas_used","gas_price_wei","cost_eth","cost_idr","meta_json"]
+    for c in cols:
+        if c not in df.columns:
+            df[c] = None
+
+    df["block_number"] = pd.to_numeric(df["block_number"], errors="coerce").astype("Int64")
+    df["gas_used"]     = pd.to_numeric(df["gas_used"], errors="coerce").astype("Int64")
+    df["cost_eth"]     = pd.to_numeric(df["cost_eth"], errors="coerce")
+    df["cost_idr"]     = pd.to_numeric(df["cost_idr"], errors="coerce")
+
+    # dedup keamanan
+    df = df.drop_duplicates(subset=["id"], keep="last")
+    return df[cols]
 
     ing = 0
 
@@ -648,28 +657,40 @@ def render_swc_page():
 
     # --- mapping CSV/NDJSON -> schema + id fallback + dedup ---
     def map_swc(df: pd.DataFrame) -> pd.DataFrame:
-        cols = [
-            "finding_id","timestamp","network","contract","file","line_start","line_end",
-            "swc_id","title","severity","confidence","status","remediation","commit_hash"
-        ]
-        for c in cols:
-            if c not in df.columns:
-                df[c] = None
+    cols = ["finding_id","timestamp","network","contract","file","line_start","line_end",
+            "swc_id","title","severity","confidence","status","remediation","commit_hash"]
+    for c in cols:
+        if c not in df.columns:
+            df[c] = None
+    # tipisasi
+    df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce").fillna(pd.Timestamp.utcnow())
+    for ic in ["line_start","line_end"]:
+        df[ic] = pd.to_numeric(df[ic], errors="coerce").astype("Int64")
+    df["confidence"] = pd.to_numeric(df["confidence"], errors="coerce")
 
-        # fallback id: contract::swc_id::line_start
-        fallback = df.apply(
-            lambda r: f"{r.get('contract','')}::{r.get('swc_id','')}::{r.get('line_start','')}",
-            axis=1
-        )
-        if "finding_id" not in df.columns:
-            df["finding_id"] = fallback
-        else:
-            mask = df["finding_id"].isna() | (df["finding_id"].astype(str).str.strip() == "")
-            df.loc[mask, "finding_id"] = fallback[mask]
+    # fallback id stabil + unik
+    raw_key = (
+        df.get("contract", "").astype(str).fillna("") + "|" +
+        df.get("file", "").astype(str).fillna("") + "|" +
+        df.get("swc_id", "").astype(str).fillna("") + "|" +
+        df.get("line_start").astype(str).fillna("") + "|" +
+        df.get("title", "").astype(str).fillna("") + "|" +
+        pd.Series(range(len(df))).astype(str)   # baris-idx untuk dummy data
+    )
+    fallback = raw_key.str.encode("utf-8").map(lambda b: hashlib.sha256(b).hexdigest().upper().str[:16])
+    fallback = "SWC::" + fallback
 
-        df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce").fillna(pd.Timestamp.utcnow())
-        df = df.drop_duplicates(subset=["finding_id"], keep="last").copy()
-        return df[cols]
+    fid = df.get("finding_id")
+    if fid is None:
+        df["finding_id"] = fallback
+    else:
+        fid = fid.astype(str)
+        mask_empty = fid.isna() | fid.str.strip().eq("")
+        df.loc[mask_empty, "finding_id"] = fallback[mask_empty]
+
+    # dedup by finding_id (keep last)
+    df = df.drop_duplicates(subset=["finding_id"], keep="last").copy()
+    return df[cols]
 
     # --- Ingest (AUTO seperti Bench/Vision) ---
     with st.expander("Ingest CSV/NDJSON SWC Findings", expanded=False):
