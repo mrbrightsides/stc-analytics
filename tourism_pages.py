@@ -1071,11 +1071,11 @@ Satu tempat buat pantau **biaya gas (Vision)**, **temuan keamanan (SWC)**, dan *
 ---
 
 #### 🚀 Alur kerja singkat
-1. **Upload data** (CSV / NDJSON) di tiap tab.  
-2. (Opsional) **Load existing stored data** di sidebar untuk pakai data yang sudah tersimpan.  
-3. Gunakan **filter** untuk eksplorasi + buka **SWC Knowledge** buat penjelasan tiap _SWC-ID_.  
+1. **Upload data** (CSV / NDJSON) di tiap tab.
+2. (Opsional) **Load existing stored data** di sidebar untuk pakai data yang sudah tersimpan.
+3. Gunakan **filter** untuk eksplorasi + buka **SWC Knowledge** buat penjelasan tiap _SWC-ID_.
 4. **Export** hasil filter via tombol **Download CSV**.
-5. Template CSV adalah file kosong berisi kolom sesuai format sistem. Isi dengan data Anda sendiri. Untuk contoh berisi data, gunakan 
+5. Template CSV adalah file kosong berisi kolom sesuai format sistem. Isi dengan data Anda sendiri. Untuk contoh berisi data, gunakan
 [file dummy](https://github.com/mrbrightsides/stc-analytics/tree/main/dummy) untuk melihat grafik secara cepat.
 
 > ℹ️ Catatan: WebApp ini hanya sebagai **reader/analytics**. Analisis kelemahan detail tetap mengacu ke referensi SWC & tool audit resmi.
@@ -1083,22 +1083,22 @@ Satu tempat buat pantau **biaya gas (Vision)**, **temuan keamanan (SWC)**, dan *
 ---
 
 #### 📦 Format & sumber data (ringkas)
-- **Vision (Cost)**  
-  - NDJSON: `id, project, network, timestamp, tx_hash, contract, function_name, block_number, gas_used, gas_price_wei, cost_eth, cost_idr, meta_json`.  
+- **Vision (Cost)**
+  - NDJSON: `id, project, network, timestamp, tx_hash, contract, function_name, block_number, gas_used, gas_price_wei, cost_eth, cost_idr, meta_json`.
   - CSV (dari STC-Vision): pakai **Template CSV (Vision)** / **Contoh NDJSON (Vision)** di tab.
-- **Security (SWC)**  
-  - CSV/NDJSON: `finding_id (opsional), timestamp, network, contract, file, line_start, line_end, swc_id, title, severity, confidence, status, remediation, commit_hash`.  
-  - Kalau `finding_id` kosong, app akan auto-generate `contract::swc_id::line_start` & **de-dup** per batch.  
+- **Security (SWC)**
+  - CSV/NDJSON: `finding_id (opsional), timestamp, network, contract, file, line_start, line_end, swc_id, title, severity, confidence, status, remediation, commit_hash`.
+  - Kalau `finding_id` kosong, app akan auto-generate `contract::swc_id::line_start` & **de-dup** per batch.
   - Lihat tombol **Template CSV (SWC)** & **Contoh NDJSON (SWC)** di tab.
-- **Performance (Bench)**  
-  - `bench_runs.csv`: `run_id, timestamp, network, scenario, contract, function_name, concurrency, tx_per_user, tps_avg, tps_peak, p50_ms, p95_ms, success_rate`.  
+- **Performance (Bench)**
+  - `bench_runs.csv`: `run_id, timestamp, network, scenario, contract, function_name, concurrency, tx_per_user, tps_avg, tps_peak, p50_ms, p95_ms, success_rate`.
   - `bench_tx.csv`: `run_id, tx_hash, submitted_at, mined_at, latency_ms, status, gas_used, gas_price_wei, block_number, function_name`.
 
 ---
 
 #### 🧰 Tips & trik
-- Struktur kolom berubah? Pakai **Reset schema (DROP & CREATE)** di sidebar.  
-- Mau mulai bersih? Klik **Clear all DuckDB data**.  
+- Struktur kolom berubah? Pakai **Reset schema (DROP & CREATE)** di sidebar.
+- Mau mulai bersih? Klik **Clear all DuckDB data**.
 - Gunakan **date range** & **select filter** buat narrowing cepat.
 
 ---
@@ -1120,49 +1120,49 @@ Versi UI: v1.0 • Streamlit + DuckDB • Theme Dark
 FAQ_MD = """
 ### FAQs — STC Analytics
 
-**1) Apa itu STC Analytics?**  
+**1) Apa itu STC Analytics?**
 STC Analytics adalah dashboard hibrida untuk memvisualisasikan **biaya gas (Vision)**, **temuan keamanan SWC**, dan **hasil benchmark** smart contract.
 
-**2) Apa yang dapat dilakukan?**  
+**2) Apa yang dapat dilakukan?**
 Unggah CSV/NDJSON, lihat metrik/grafik/tabel, unduh template & hasil filter, serta baca ringkasan **SWC Knowledge**.
 
-**3) Penyimpanan & privasi data**  
+**3) Penyimpanan & privasi data**
 Data disimpan **lokal** di DuckDB (`stc_analytics.duckdb`) pada mesin Anda; tidak dikirim ke pihak ketiga. Gunakan **Clear data** / **Reset schema** bila diperlukan.
 
-**4) Format yang didukung**  
-- Vision: `Network, Tx Hash, Block, Gas Used, Gas Price (Gwei), Estimated Fee (ETH/Rp), Contract, Function, Timestamp, Status`  
-- SWC: `finding_id (opsional), timestamp, network, contract, file, line_start, line_end, swc_id, title, severity, confidence, status, remediation, commit_hash`  
-- Bench (runs): `run_id, timestamp, network, scenario, contract, function_name, concurrency, tx_per_user, tps_avg, tps_peak, p50_ms, p95_ms, success_rate`  
+**4) Format yang didukung**
+- Vision: `Network, Tx Hash, Block, Gas Used, Gas Price (Gwei), Estimated Fee (ETH/Rp), Contract, Function, Timestamp, Status`
+- SWC: `finding_id (opsional), timestamp, network, contract, file, line_start, line_end, swc_id, title, severity, confidence, status, remediation, commit_hash`
+- Bench (runs): `run_id, timestamp, network, scenario, contract, function_name, concurrency, tx_per_user, tps_avg, tps_peak, p50_ms, p95_ms, success_rate`
 - Bench (tx opsional): `run_id, tx_hash, submitted_at, mined_at, latency_ms, status, gas_used, gas_price_wei, block_number, function_name`
 
-**5) Akurasi**  
+**5) Akurasi**
 Dashboard menampilkan data sumber; akurasi bergantung input. SWC **bukan** audit engine, gunakan sebagai panduan.
 
-**6) SWC Knowledge**  
+**6) SWC Knowledge**
 Dibaca dari `swc_kb.json` (bisa diatur via `SWC_KB_PATH`). Mendukung format **list** atau **dict** berindeks SWC-ID. Anda bisa menambah/ubah konten.
 
-**7) Duplikasi temuan SWC**  
+**7) Duplikasi temuan SWC**
 PK `finding_id`. Jika kosong, app membuat **contract::swc_id::line_start** dan de-dup per batch.
 
-**8) Impor lambat?**  
+**8) Impor lambat?**
 Pengaruh ukuran file, parsing, upsert, render grafik. Pecah file besar, pastikan header sesuai template, gunakan angka bersih & UTF-8.
 
-**9) Cara meningkatkan kualitas**  
+**9) Cara meningkatkan kualitas**
 Ikuti template, konsisten `timestamp/function_name/network`. SWC: stabilkan `finding_id`. Bench: `run_id` unik & metrik lengkap.
 
-**10) Integrasi AI**  
+**10) Integrasi AI**
 Tidak aktif secara default. Bisa ditambahkan (BYO API key) sesuai kebijakan data organisasi.
 
-**11) Ekspor data**  
+**11) Ekspor data**
 Gunakan tombol **Download hasil filter (CSV)** di setiap tab.
 
-**12) Multi-chain**  
+**12) Multi-chain**
 Didukung; gunakan filter **Network**.
 
-**13) Istilah Bench**  
+**13) Istilah Bench**
 TPS Peak/Avg, p50_ms/p95_ms (latensi), Success Rate.
 
-**14) Troubleshooting**  
+**14) Troubleshooting**
 Kolom hilang/PK conflict/parsing tanggal/angka & encoding/berkas besar—lihat bantuan di setiap tab atau gunakan template resmi.
 """
 
@@ -1170,33 +1170,33 @@ with st.expander("❓ FAQ", expanded=False):
     st.markdown(FAQ_MD)
 
 HELP_COST = """
-**Apa itu Cost (Vision)?**  
+**Apa itu Cost (Vision)?**
 Menampilkan biaya gas per transaksi/function dari file output STC-Vision.
 
-**Format CSV (header contoh):**  
+**Format CSV (header contoh):**
 `Network, Tx Hash, Block, Gas Used, Gas Price (Gwei), Estimated Fee (ETH), Estimated Fee (Rp), Contract, Function, Timestamp, Status`
 
 **Tips:** Timestamp boleh kosong (kita auto-isi); NDJSON didukung (1 objek per baris).
 """
 
 HELP_SWC = """
-**Apa itu Security (SWC)?**  
+**Apa itu Security (SWC)?**
 Menampilkan daftar temuan berdasarkan **Smart Contract Weakness Classification**.
 
-**Kolom minimal:**  
+**Kolom minimal:**
 `finding_id (opsional), timestamp, network, contract, file, line_start, line_end, swc_id, title, severity, confidence, status, remediation, commit_hash`
 
 > Kalau `finding_id` kosong, kita auto-generate **contract::swc_id::line_start** dan *de-dup* batch sebelum upsert.
 """
 
 HELP_BENCH = """
-**Apa itu Performance (Bench)?**  
+**Apa itu Performance (Bench)?**
 Menampilkan hasil uji beban (TPS/latency/success rate).
 
-**runs.csv:**  
+**runs.csv:**
 `run_id, timestamp, network, scenario, contract, function_name, concurrency, tx_per_user, tps_avg, tps_peak, p50_ms, p95_ms, success_rate`
 
-**bench_tx.csv (opsional):**  
+**bench_tx.csv (opsional):**
 `run_id, tx_hash, submitted_at, mined_at, latency_ms, status, gas_used, gas_price_wei, block_number, function_name`
 """
 
