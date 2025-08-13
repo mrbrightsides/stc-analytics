@@ -167,7 +167,7 @@ def render_cost_page():
     no_new_upload = (st.session_state.get("nd_cost") is None and st.session_state.get("csv_cost") is None)
     if no_new_upload and not want_load:
         st.info("Belum ada data cost untuk sesi ini. Upload NDJSON/CSV atau aktifkan ‘Load existing stored data’ di sidebar.")
-        st.stop()
+        run()
 
     con = get_conn()
     df = con.execute("SELECT * FROM vision_costs ORDER BY timestamp DESC").df()
@@ -495,7 +495,7 @@ def render_swc_page():
     no_new_upload = (st.session_state.get("swc_csv") is None and st.session_state.get("swc_nd") is None)
     if no_new_upload and not want_load:
         st.info("Belum ada data temuan SWC untuk sesi ini. Upload CSV/NDJSON atau aktifkan ‘Load existing stored data’.")
-        st.stop()
+        run()
 
     # --- Load data ---
     con = get_conn()
@@ -683,7 +683,7 @@ def render_bench_page():
     no_new_upload = (st.session_state.get("runs_csv") is None) and (st.session_state.get("tx_csv") is None)
     if no_new_upload and not want_load:
         st.info("Belum ada data benchmark untuk sesi ini. Upload bench_runs/bench_tx atau aktifkan ‘Load existing stored data’.")
-        st.stop()
+        run()
 
     con = get_conn()
     runs_df = con.execute("SELECT * FROM bench_runs ORDER BY timestamp DESC").df()
@@ -786,3 +786,194 @@ def render_bench_page():
     st.dataframe(plot, use_container_width=True)
 
     show_help("bench")
+
+# -------------------------------
+# UI helpers: About + Help + Sample templates + CSV util
+# -------------------------------
+GITHUB_URL = "https://github.com/mrbrightsides"
+
+with st.sidebar.expander("📘 About / Cara pakai", expanded=True):
+    st.markdown(
+        """
+### STC Analytics — Hybrid Dashboard
+
+Satu tempat buat pantau **biaya gas (Vision)**, **temuan keamanan (SWC)**, dan **hasil benchmark (Bench)** — cepat, ringan, dan terstruktur.
+
+---
+
+#### 🚀 Alur kerja singkat
+1. **Upload data** (CSV / NDJSON) di tiap tab.  
+2. (Opsional) **Load existing stored data** di sidebar untuk pakai data yang sudah tersimpan.  
+3. Gunakan **filter** untuk eksplorasi + buka **SWC Knowledge** buat penjelasan tiap _SWC-ID_.  
+4. **Export** hasil filter via tombol **Download CSV**.
+5. Template CSV adalah file kosong berisi kolom sesuai format sistem. Isi dengan data Anda sendiri. Untuk contoh berisi data, gunakan 
+[file dummy](https://github.com/mrbrightsides/stc-analytics/tree/main/dummy) untuk melihat grafik secara cepat.
+
+> ℹ️ Catatan: WebApp ini hanya sebagai **reader/analytics**. Analisis kelemahan detail tetap mengacu ke referensi SWC & tool audit resmi.
+
+---
+
+#### 📦 Format & sumber data (ringkas)
+- **Vision (Cost)**  
+  - NDJSON: `id, project, network, timestamp, tx_hash, contract, function_name, block_number, gas_used, gas_price_wei, cost_eth, cost_idr, meta_json`.  
+  - CSV (dari STC-Vision): pakai **Template CSV (Vision)** / **Contoh NDJSON (Vision)** di tab.
+- **Security (SWC)**  
+  - CSV/NDJSON: `finding_id (opsional), timestamp, network, contract, file, line_start, line_end, swc_id, title, severity, confidence, status, remediation, commit_hash`.  
+  - Kalau `finding_id` kosong, app akan auto-generate `contract::swc_id::line_start` & **de-dup** per batch.  
+  - Lihat tombol **Template CSV (SWC)** & **Contoh NDJSON (SWC)** di tab.
+- **Performance (Bench)**  
+  - `bench_runs.csv`: `run_id, timestamp, network, scenario, contract, function_name, concurrency, tx_per_user, tps_avg, tps_peak, p50_ms, p95_ms, success_rate`.  
+  - `bench_tx.csv`: `run_id, tx_hash, submitted_at, mined_at, latency_ms, status, gas_used, gas_price_wei, block_number, function_name`.
+
+---
+
+#### 🧰 Tips & trik
+- Struktur kolom berubah? Pakai **Reset schema (DROP & CREATE)** di sidebar.  
+- Mau mulai bersih? Klik **Clear all DuckDB data**.  
+- Gunakan **date range** & **select filter** buat narrowing cepat.
+
+---
+
+#### 🔒 Privasi
+Semua data disimpan **lokal** di **DuckDB**. Aplikasi ini tidak mengirim data ke layanan eksternal.
+
+---
+
+#### 🙌 Dukungan & kontributor
+- ⭐ **Star / Fork**: [GitHub repo]({https://github.com/mrbrightsides/stc-analytics})
+- Made for STC — _lightweight analytics for web3 dev teams_.
+
+Versi UI: v1.0 • Streamlit + DuckDB • Theme Dark
+""",
+        unsafe_allow_html=False,
+    )
+
+FAQ_MD = """
+### FAQs — STC Analytics
+
+**1) Apa itu STC Analytics?**  
+STC Analytics adalah dashboard hibrida untuk memvisualisasikan **biaya gas (Vision)**, **temuan keamanan SWC**, dan **hasil benchmark** smart contract.
+
+**2) Apa yang dapat dilakukan?**  
+Unggah CSV/NDJSON, lihat metrik/grafik/tabel, unduh template & hasil filter, serta baca ringkasan **SWC Knowledge**.
+
+**3) Penyimpanan & privasi data**  
+Data disimpan **lokal** di DuckDB (`stc_analytics.duckdb`) pada mesin Anda; tidak dikirim ke pihak ketiga. Gunakan **Clear data** / **Reset schema** bila diperlukan.
+
+**4) Format yang didukung**  
+- Vision: `Network, Tx Hash, Block, Gas Used, Gas Price (Gwei), Estimated Fee (ETH/Rp), Contract, Function, Timestamp, Status`  
+- SWC: `finding_id (opsional), timestamp, network, contract, file, line_start, line_end, swc_id, title, severity, confidence, status, remediation, commit_hash`  
+- Bench (runs): `run_id, timestamp, network, scenario, contract, function_name, concurrency, tx_per_user, tps_avg, tps_peak, p50_ms, p95_ms, success_rate`  
+- Bench (tx opsional): `run_id, tx_hash, submitted_at, mined_at, latency_ms, status, gas_used, gas_price_wei, block_number, function_name`
+
+**5) Akurasi**  
+Dashboard menampilkan data sumber; akurasi bergantung input. SWC **bukan** audit engine, gunakan sebagai panduan.
+
+**6) SWC Knowledge**  
+Dibaca dari `swc_kb.json` (bisa diatur via `SWC_KB_PATH`). Mendukung format **list** atau **dict** berindeks SWC-ID. Anda bisa menambah/ubah konten.
+
+**7) Duplikasi temuan SWC**  
+PK `finding_id`. Jika kosong, app membuat **contract::swc_id::line_start** dan de-dup per batch.
+
+**8) Impor lambat?**  
+Pengaruh ukuran file, parsing, upsert, render grafik. Pecah file besar, pastikan header sesuai template, gunakan angka bersih & UTF-8.
+
+**9) Cara meningkatkan kualitas**  
+Ikuti template, konsisten `timestamp/function_name/network`. SWC: stabilkan `finding_id`. Bench: `run_id` unik & metrik lengkap.
+
+**10) Integrasi AI**  
+Tidak aktif secara default. Bisa ditambahkan (BYO API key) sesuai kebijakan data organisasi.
+
+**11) Ekspor data**  
+Gunakan tombol **Download hasil filter (CSV)** di setiap tab.
+
+**12) Multi-chain**  
+Didukung; gunakan filter **Network**.
+
+**13) Istilah Bench**  
+TPS Peak/Avg, p50_ms/p95_ms (latensi), Success Rate.
+
+**14) Troubleshooting**  
+Kolom hilang/PK conflict/parsing tanggal/angka & encoding/berkas besar—lihat bantuan di setiap tab atau gunakan template resmi.
+"""
+
+with st.expander("❓ FAQ", expanded=False):
+    st.markdown(FAQ_MD)
+
+HELP_COST = """
+**Apa itu Cost (Vision)?**  
+Menampilkan biaya gas per transaksi/function dari file output STC-Vision.
+
+**Format CSV (header contoh):**  
+`Network, Tx Hash, Block, Gas Used, Gas Price (Gwei), Estimated Fee (ETH), Estimated Fee (Rp), Contract, Function, Timestamp, Status`
+
+**Tips:** Timestamp boleh kosong (kita auto-isi); NDJSON didukung (1 objek per baris).
+"""
+
+HELP_SWC = """
+**Apa itu Security (SWC)?**  
+Menampilkan daftar temuan berdasarkan **Smart Contract Weakness Classification**.
+
+**Kolom minimal:**  
+`finding_id (opsional), timestamp, network, contract, file, line_start, line_end, swc_id, title, severity, confidence, status, remediation, commit_hash`
+
+> Kalau `finding_id` kosong, kita auto-generate **contract::swc_id::line_start** dan *de-dup* batch sebelum upsert.
+"""
+
+HELP_BENCH = """
+**Apa itu Performance (Bench)?**  
+Menampilkan hasil uji beban (TPS/latency/success rate).
+
+**runs.csv:**  
+`run_id, timestamp, network, scenario, contract, function_name, concurrency, tx_per_user, tps_avg, tps_peak, p50_ms, p95_ms, success_rate`
+
+**bench_tx.csv (opsional):**  
+`run_id, tx_hash, submitted_at, mined_at, latency_ms, status, gas_used, gas_price_wei, block_number, function_name`
+"""
+
+def show_help(which: str):
+    with st.expander("🆘 Help", expanded=False):
+        if which == "cost":
+            st.markdown(HELP_COST)
+        elif which == "swc":
+            st.markdown(HELP_SWC)
+        elif which == "bench":
+            st.markdown(HELP_BENCH)
+
+def sample_templates():
+    """Buat sample DF utk user download sebagai template."""
+    cost_cols = ["Network","Tx Hash","From","To","Block","Gas Used","Gas Price (Gwei)","Estimated Fee (ETH)","Estimated Fee (Rp)","Contract","Function","Timestamp","Status"]
+    swc_cols  = ["finding_id","timestamp","network","contract","file","line_start","line_end","swc_id","title","severity","confidence","status","remediation","commit_hash"]
+    runs_cols = ["run_id","timestamp","network","scenario","contract","function_name","concurrency","tx_per_user","tps_avg","tps_peak","p50_ms","p95_ms","success_rate"]
+    tx_cols   = ["run_id","tx_hash","submitted_at","mined_at","latency_ms","status","gas_used","gas_price_wei","block_number","function_name"]
+
+    df_cost = pd.DataFrame([{
+        "Network":"Sepolia","Tx Hash":"0x...","From":"0x...","To":"0x...","Block":123456,
+        "Gas Used":21000,"Gas Price (Gwei)":22.5,"Estimated Fee (ETH)":0.00047,"Estimated Fee (Rp)":15000,
+        "Contract":"SmartReservation","Function":"bookHotel","Timestamp":pd.Timestamp.utcnow().isoformat(),"Status":"Success"
+    }], columns=cost_cols)
+
+    df_swc = pd.DataFrame([{
+        "finding_id":"","timestamp":pd.Timestamp.utcnow().isoformat(),"network":"Arbitrum Sepolia",
+        "contract":"SmartTourismToken","file":"contracts/SmartTourismToken.sol",
+        "line_start":332,"line_end":342,"swc_id":"SWC-108","title":"Potential issue SWC-108 detected",
+        "severity":"Medium","confidence":0.83,"status":"Open","remediation":"Refactor code and add checks","commit_hash":"abc123"
+    }], columns=swc_cols)
+
+    df_runs = pd.DataFrame([{
+        "run_id":"run-001","timestamp":pd.Timestamp.utcnow().isoformat(),"network":"Sepolia","scenario":"LoadTestSmall",
+        "contract":"SmartReservation","function_name":"checkIn","concurrency":50,"tx_per_user":5,
+        "tps_avg":85.2,"tps_peak":110.4,"p50_ms":220,"p95_ms":540,"success_rate":0.97
+    }], columns=runs_cols)
+
+    df_tx = pd.DataFrame([{
+        "run_id":"run-001","tx_hash":"0x...","submitted_at":pd.Timestamp.utcnow().isoformat(),"mined_at":pd.Timestamp.utcnow().isoformat(),
+        "latency_ms":450,"status":"success","gas_used":21000,"gas_price_wei":"22000000000","block_number":123456,"function_name":"checkIn"
+    }], columns=tx_cols)
+
+    return df_cost, df_swc, df_runs, df_tx
+
+def csv_bytes(df: pd.DataFrame) -> bytes:
+    buff = io.StringIO()
+    df.to_csv(buff, index=False)
+    return buff.getvalue().encode("utf-8")
