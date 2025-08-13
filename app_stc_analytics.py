@@ -510,7 +510,9 @@ if page == "Cost (Vision)":
         df["timestamp"] = pd.to_datetime(df.get("timestamp"), errors="coerce")
         df["timestamp"] = df["timestamp"].fillna(pd.Timestamp.utcnow())
 
-        gwei = pd.to_numeric(df.get("gas_price_gwei", 0), errors="coerce").fillna(0)
+        gwei_src = df["gas_price_gwei"] if "gas_price_gwei" in df.columns else pd.Series(0, index=df.index)
+        gwei = pd.to_numeric(gwei_src, errors="coerce").fillna(0)
+
         df["gas_price_wei"] = (gwei * 1_000_000_000).round().astype("Int64")
 
         status_series = df.get("status")
