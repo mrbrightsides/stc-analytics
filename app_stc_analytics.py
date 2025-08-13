@@ -921,6 +921,8 @@ if page == "Cost (Vision)":
                     ts, x="ts", y=y, color="network", markers=not do_smooth,
                     title="Biaya per Transaksi (Rp) vs Waktu",
                     labels={"ts": "Waktu", y: "Biaya (Rp)", "network": "Jaringan"},
+                    template="plotly_white",
+                    color_discrete_sequence=px.colors.qualitative.Set2,
                 )
                 if line_log:
                     fig.update_yaxes(type="log")
@@ -976,6 +978,8 @@ if page == "Cost (Vision)":
                 title="Gas Used vs Gas Price (size = Biaya Rp)",
                 labels={"gas_used_num": "Gas Used", "gas_price_num": "Gas Price (wei)", "network": "Jaringan"},
                 hover_data=None,
+                template="plotly_white",
+                color_discrete_sequence=px.colors.qualitative.Set2,
             )
             
             out = sc[sc["is_outlier"]]
