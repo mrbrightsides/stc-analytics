@@ -510,18 +510,25 @@ if page == "Cost (Vision)":
         df["timestamp"] = pd.to_datetime(df.get("timestamp"), errors="coerce")
         df["timestamp"] = df["timestamp"].fillna(pd.Timestamp.utcnow())
 
-        gwei_src = df["gas_price_gwei"] if "gas_price_gwei" in df.columns else pd.Series(0, index=df.index)
+        # --- gas_price_wei: tahan kolom hilang ---
+        if "gas_price_gwei" in df.columns:
+            gwei_src = df["gas_price_gwei"]
+        else:
+            gwei_src = pd.Series(0, index=df.index, dtype="float64")
         gwei = pd.to_numeric(gwei_src, errors="coerce").fillna(0)
-
         df["gas_price_wei"] = (gwei * 1_000_000_000).round().astype("Int64")
 
-        status_series = df.get("status")
-        df["meta_json"] = (
-            status_series.astype(str).apply(lambda s: json.dumps({"status": s}) if s else "{}")
-            if status_series is not None else "{}"
-        )
+        if "status" in df.columns:
+            df["meta_json"] = df["status"].astype(str).apply(lambda s: json.dumps({"status": s}) if s else "{}")
+        elif "meta_json" not in df.columns:
+            df["meta_json"] = "{}"
 
-        tx = df.get("tx_hash").astype(str).fillna("")
+        tx_series = df["tx_hash"] if "tx_hash" in df.columns else pd.Series("", index=df.index)
+        fn_series = df["function_name"] if "function_name" in df.columns else pd.Series("", index=df.index)
+
+        tx = tx_series.astype(str).fillna("")
+        base_id = tx + "::" + fn_series.astype(str).fillna("")
+        df["id"] = base_id
         is_dummy = tx.eq("") | tx.str.contains(r"\.\.\.")
         base_id = tx + "::" + df.get("function_name", "").astype(str).fillna("")
         df["id"] = base_id
