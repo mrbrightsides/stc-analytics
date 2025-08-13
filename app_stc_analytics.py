@@ -551,11 +551,19 @@ if page == "Cost (Vision)":
         df["project"] = "STC"
 
         ts_src = df["timestamp"] if "timestamp" in df.columns else pd.Series(pd.NaT, index=df.index)
-        df["timestamp"] = (
-            pd.to_datetime(ts_src, errors="coerce", dayfirst=True, utc=True)
-              .dt.tz_localize(None)
-        )
-
+        ts_raw = df.get("timestamp")
+        if ts_raw is not None:
+            ts_clean = (
+                pd.Series(ts_raw, index=df.index)
+                  .astype(str)
+                  .str.strip()
+                  .str.replace(r"Z$", "+00:00", regex=True)
+            )
+            ts = pd.to_datetime(ts_clean, errors="coerce", utc=True, format="ISO8601")
+            ts = ts.fillna(pd.to_datetime(ts_clean, errors="coerce", dayfirst=True, utc=True))
+            df["timestamp"] = ts.dt.tz_localize(None)
+        else:
+            df["timestamp"] = pd.NaT
 
         if "gas_price_gwei" in df.columns:
             gwei_src = df["gas_price_gwei"]
@@ -702,10 +710,19 @@ if page == "Cost (Vision)":
                 d["project"] = d.get("project")
                 d["project"] = d["project"].fillna("STC")
 
-                d["timestamp"] = (
-                    pd.to_datetime(d["timestamp"], errors="coerce", utc=True)
-                      .dt.tz_localize(None)
-                )
+                ts_raw = df.get("timestamp")
+                if ts_raw is not None:
+                    ts_clean = (
+                        pd.Series(ts_raw, index=df.index)
+                          .astype(str)
+                          .str.strip()
+                          .str.replace(r"Z$", "+00:00", regex=True)
+                    )
+                    ts = pd.to_datetime(ts_clean, errors="coerce", utc=True, format="ISO8601")
+                    ts = ts.fillna(pd.to_datetime(ts_clean, errors="coerce", dayfirst=True, utc=True))
+                    df["timestamp"] = ts.dt.tz_localize(None)
+                else:
+                    df["timestamp"] = pd.NaT
                 for numc in ["block_number", "gas_used", "gas_price_wei", "cost_eth", "cost_idr"]:
                     d[numc] = pd.to_numeric(d[numc], errors="coerce")
 
