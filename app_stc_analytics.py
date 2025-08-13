@@ -494,416 +494,416 @@ page = st.sidebar.radio("Pilih tab", ["Cost (Vision)","Security (SWC)","Performa
 # -------------------------------
 # COST (Vision)
 # -------------------------------
-def map_csv_cost(df_raw: pd.DataFrame) -> pd.DataFrame:
-    m = {
-        "Network": "network", "network": "network",
-        "Tx Hash": "tx_hash", "tx_hash": "tx_hash",
-        "From": "from_address", "from": "from_address",
-        "To": "to_address", "to": "to_address",
-        "Block": "block_number", "block": "block_number",
-        "Gas Used": "gas_used", "gas_used": "gas_used",
-        "Gas Price (Gwei)": "gas_price_gwei", "gas_price_gwei": "gas_price_gwei",
-        "Estimated Fee (ETH)": "cost_eth", "estimated_fee_eth": "cost_eth",
-        "Estimated Fee (Rp)": "cost_idr", "estimated_fee_rp": "cost_idr",
-        "Contract": "contract", "contract": "contract",
-        "Function": "function_name", "function": "function_name",
-        "Timestamp": "timestamp", "timestamp": "timestamp",
-        "Status": "status", "status": "status",
-        "id": "id",
-    }
-    df = df_raw.rename(columns=m, errors="ignore").copy()
-
-    # default project
-    df["project"] = "STC"
-
-    ts = pd.to_datetime(df.get("timestamp"), errors="coerce", dayfirst=True)
-    df["timestamp"] = ts.fillna(pd.Timestamp.utcnow())
-
-    if "gas_price_gwei" in df.columns:
-        gwei_src = df["gas_price_gwei"]
-    else:
-        gwei_src = pd.Series(0, index=df.index, dtype="float64")
-    gwei = pd.to_numeric(gwei_src, errors="coerce").fillna(0)
-    df["gas_price_wei"] = (gwei * 1_000_000_000).round().astype("Int64")
-
-    if "status" in df.columns:
-        df["meta_json"] = df["status"].astype(str).apply(lambda s: json.dumps({"status": s}) if s else "{}")
-    elif "meta_json" not in df.columns:
-        df["meta_json"] = "{}"
-
-    tx_series = df["tx_hash"] if "tx_hash" in df.columns else pd.Series("", index=df.index)
-    fn_series = df["function_name"] if "function_name" in df.columns else pd.Series("", index=df.index)
-    tx = tx_series.astype(str).fillna("")
-    fn = fn_series.astype(str).fillna("")
-
-    if "id" in df.columns:
-        df["id"] = df["id"].astype(str).fillna("").str.strip()
-    else:
-        df["id"] = ""
-
-    need_id = df["id"].eq("")
-    base_id = (tx + "::" + fn).where(need_id, df["id"])
-    df["id"] = base_id
-
-    still_empty = df["id"].eq("")
-    if still_empty.any():
-        unique_fallback = (
-            df.astype(str)
-              .agg("|".join, axis=1)
-              .pipe(lambda s: s.str.encode("utf-8"))
-              .map(lambda b: hashlib.sha256(b).hexdigest())
-              .str.slice(0, 16)
-        )
-        df.loc[still_empty, "id"] = "csv::" + unique_fallback[still_empty]
-
-    cols = [
-        "id","project","network","timestamp","tx_hash","contract","function_name",
-        "block_number","gas_used","gas_price_wei","cost_eth","cost_idr","meta_json"
-    ]
-    for c in cols:
-        if c not in df.columns:
-            df[c] = None
-
-    df["block_number"] = pd.to_numeric(df["block_number"], errors="coerce").astype("Int64")
-    df["gas_used"]     = pd.to_numeric(df["gas_used"], errors="coerce").astype("Int64")
-    df["cost_eth"]     = pd.to_numeric(df["cost_eth"], errors="coerce")
-    df["cost_idr"]     = pd.to_numeric(df["cost_idr"], errors="coerce")
+if page == "Cost (Vision)":
+    st.title("💰 Cost Analytics — STC Vision")
+    def map_csv_cost(df_raw: pd.DataFrame) -> pd.DataFrame:
+        m = {
+            "Network": "network", "network": "network",
+            "Tx Hash": "tx_hash", "tx_hash": "tx_hash",
+            "From": "from_address", "from": "from_address",
+            "To": "to_address", "to": "to_address",
+            "Block": "block_number", "block": "block_number",
+            "Gas Used": "gas_used", "gas_used": "gas_used",
+            "Gas Price (Gwei)": "gas_price_gwei", "gas_price_gwei": "gas_price_gwei",
+            "Estimated Fee (ETH)": "cost_eth", "estimated_fee_eth": "cost_eth",
+            "Estimated Fee (Rp)": "cost_idr", "estimated_fee_rp": "cost_idr",
+            "Contract": "contract", "contract": "contract",
+            "Function": "function_name", "function": "function_name",
+            "Timestamp": "timestamp", "timestamp": "timestamp",
+            "Status": "status", "status": "status",
+            "id": "id",
+        }
+        df = df_raw.rename(columns=m, errors="ignore").copy()
     
-    net_series = df["network"] if "network" in df.columns else pd.Series("(Unknown)", index=df.index)
-    df["network"] = net_series.fillna("(Unknown)")
+        # default project
+        df["project"] = "STC"
 
-    keep_mask = (
-        df["id"].ne("") |
-        df["function_name"].astype(str).str.strip().ne("") |
-        df["gas_used"].fillna(0).ne(0) |
-        df["cost_eth"].fillna(0).ne(0) |
-        df["cost_idr"].fillna(0).ne(0)
-    )
-    df = df[keep_mask].copy()
-    return df[cols]
+        ts = pd.to_datetime(df.get("timestamp"), errors="coerce", dayfirst=True)
+        df["timestamp"] = ts.fillna(pd.Timestamp.utcnow())
 
-    ing = 0
+        if "gas_price_gwei" in df.columns:
+            gwei_src = df["gas_price_gwei"]
+        else:
+            gwei_src = pd.Series(0, index=df.index, dtype="float64")
+        gwei = pd.to_numeric(gwei_src, errors="coerce").fillna(0)
+        df["gas_price_wei"] = (gwei * 1_000_000_000).round().astype("Int64")
 
-    with st.expander("Ingest data (NDJSON/CSV) → DuckDB", expanded=False):
-        left, right = st.columns(2)
-        with left:
-            cs = st.file_uploader(
-                "Upload CSV (dari STC-Vision)",
-                type=None, key="csv_cost"
+        if "status" in df.columns:
+            df["meta_json"] = df["status"].astype(str).apply(lambda s: json.dumps({"status": s}) if s else "{}")
+        elif "meta_json" not in df.columns:
+            df["meta_json"] = "{}"
+
+        tx_series = df["tx_hash"] if "tx_hash" in df.columns else pd.Series("", index=df.index)
+        fn_series = df["function_name"] if "function_name" in df.columns else pd.Series("", index=df.index)
+        tx = tx_series.astype(str).fillna("")
+        fn = fn_series.astype(str).fillna("")
+
+        if "id" in df.columns:
+            df["id"] = df["id"].astype(str).fillna("").str.strip()
+        else:
+            df["id"] = ""
+
+        need_id = df["id"].eq("")
+        base_id = (tx + "::" + fn).where(need_id, df["id"])
+        df["id"] = base_id
+
+        still_empty = df["id"].eq("")
+        if still_empty.any():
+            unique_fallback = (
+                df.astype(str)
+                  .agg("|".join, axis=1)
+                  .pipe(lambda s: s.str.encode("utf-8"))
+                  .map(lambda b: hashlib.sha256(b).hexdigest())
+                  .str.slice(0, 16)
             )
-        with right:
-            nd = st.file_uploader("Upload NDJSON (vision_costs.ndjson / jsonl)", type=["ndjson", "jsonl"], key="nd_cost")
+            df.loc[still_empty, "id"] = "csv::" + unique_fallback[still_empty]
 
-        # === Templates / samples ===
-        tpl_cost = pd.DataFrame(columns=[
-            "Network", "Tx Hash", "From", "To", "Block", "Gas Used", "Gas Price (Gwei)",
-            "Estimated Fee (ETH)", "Estimated Fee (Rp)", "Contract", "Function", "Timestamp", "Status"
-        ]).head(0)
-        c1, c2 = st.columns(2)
-        with c1:
-            st.download_button(
-                "⬇️ Template CSV (Vision)",
-                data=csv_bytes(tpl_cost),
-                file_name="vision_template.csv",
-                mime="text/csv",
-                use_container_width=True
-            )
-        with c2:
-            vision_sample_rows = [{
-                "id": "demo::bookHotel", "project": "STC", "network": "Sepolia",
-                "timestamp": "2025-08-12T09:45:00Z", "tx_hash": "0xabc123...",
-                "contract": "SmartReservation", "function_name": "bookHotel",
-                "block_number": 123456, "gas_used": 21000, "gas_price_wei": 22500000000,
-                "cost_eth": 0.0005, "cost_idr": 15000, "meta_json": "{\"status\":\"Success\"}"
-            }]
-            ndjson_bytes = ("\n".join(json.dumps(r) for r in vision_sample_rows)).encode("utf-8")
-            st.download_button(
-                "⬇️ Contoh NDJSON (Vision)",
-                data=ndjson_bytes,
-                file_name="vision_sample.ndjson",
-                mime="application/x-ndjson",
-                use_container_width=True
-            )
+        cols = [
+            "id","project","network","timestamp","tx_hash","contract","function_name",
+            "block_number","gas_used","gas_price_wei","cost_eth","cost_idr","meta_json"
+        ]
+        for c in cols:
+            if c not in df.columns:
+                df[c] = None
 
-        # === NDJSON ingest ===
-        if nd is not None:
-            rows = []
-            for line in nd:
-                if not line:
-                    continue
-                try:
-                    rows.append(json.loads(line.decode("utf-8")))
-                except Exception:
-                    pass
+        df["block_number"] = pd.to_numeric(df["block_number"], errors="coerce").astype("Int64")
+        df["gas_used"]     = pd.to_numeric(df["gas_used"], errors="coerce").astype("Int64")
+        df["cost_eth"]     = pd.to_numeric(df["cost_eth"], errors="coerce")
+        df["cost_idr"]     = pd.to_numeric(df["cost_idr"], errors="coerce")
+    
+        net_series = df["network"] if "network" in df.columns else pd.Series("(Unknown)", index=df.index)
+        df["network"] = net_series.fillna("(Unknown)")
 
-            if rows:
-                d = pd.DataFrame(rows)
-                if "id" not in d.columns:
-                    d["id"] = d.apply(lambda r: f"{r.get('tx_hash','')}::{(r.get('function_name') or '')}".strip(), axis=1)
-                if "meta_json" not in d.columns:
-                    if "meta" in d.columns:
-                        d["meta_json"] = d["meta"].apply(lambda x: json.dumps(x) if isinstance(x, dict) else (x if x else "{}"))
-                    else:
-                        d["meta_json"] = "{}"
-
-                cols = [
-                    "id", "project", "network", "timestamp", "tx_hash", "contract", "function_name",
-                    "block_number", "gas_used", "gas_price_wei", "cost_eth", "cost_idr", "meta_json"
-                ]
-                for c in cols:
-                    if c not in d.columns:
-                        d[c] = None
-
-                d["project"]   = d.get("project").fillna("STC")
-                d["timestamp"] = pd.to_datetime(d["timestamp"], errors="coerce").fillna(pd.Timestamp.utcnow())
-                for numc in ["block_number", "gas_used", "gas_price_wei", "cost_eth", "cost_idr"]:
-                    d[numc] = pd.to_numeric(d[numc], errors="coerce")
-
-                ing += upsert("vision_costs", d, ["id"], cols)
-
-        # === CSV ingest ===
-        if cs is not None:
-            raw = read_csv_any(cs)
-            if not raw.empty:
-                d = map_csv_cost(raw)
-                ing += upsert("vision_costs", d, ["id"], d.columns.tolist())
-            else:
-                st.warning("CSV kosong atau tidak terbaca.")
-
-        if ing:
-            st.success(f"{ing} baris masuk ke vision_costs.")
-
-    # ==== Load & tampilkan data (DI LUAR EXPANDER, masih di halaman) ====
-    want_load = st.session_state.get("load_existing", False)
-    no_new_upload = (st.session_state.get("nd_cost") is None and st.session_state.get("csv_cost") is None)
-    if no_new_upload and not want_load:
-        st.info("Belum ada data cost untuk sesi ini. Upload NDJSON/CSV atau aktifkan ‘Load existing stored data’ di sidebar.")
-        st.stop()
-
-    con = get_conn()
-    df = con.execute("SELECT * FROM vision_costs ORDER BY timestamp DESC").df()
-    con.close()
-
-    if df.empty:
-        st.info("Belum ada data cost.")
-    else:
-        # Ringkasan
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Total Rows", f"{len(df):,}")
-        c2.metric("Unique Tx", f"{df['tx_hash'].nunique():,}" if 'tx_hash' in df else "—")
-        c3.metric("Total IDR", f"{int(pd.to_numeric(df.get('cost_idr', 0), errors='coerce').fillna(0).sum()):,}")
-
-        st.markdown("### Detail Vision Costs")
-        st.dataframe(df, use_container_width=True)
-        st.download_button(
-            "⬇️ Download CSV (All)",
-            data=csv_bytes(df),
-            file_name="vision_costs_all.csv",
-            mime="text/csv",
-            use_container_width=True
+        keep_mask = (
+            df["id"].ne("") |
+            df["function_name"].astype(str).str.strip().ne("") |
+            df["gas_used"].fillna(0).ne(0) |
+            df["cost_eth"].fillna(0).ne(0) |
+            df["cost_idr"].fillna(0).ne(0)
         )
+        df = df[keep_mask].copy()
+        return df[cols]
 
-        # ====== Filters & plotting (with explorer links) ======
-        UNPARSED_LABEL = "⚠ Unparsed Function"
+        ing = 0
 
-        df_base = df.copy()
-        df_base["ts"] = pd.to_datetime(df_base["timestamp"], errors="coerce")
-        df_base["fn_raw"] = df_base["function_name"]
-        df_base["fn"] = df_base["fn_raw"].fillna(UNPARSED_LABEL).replace({"(unknown)": UNPARSED_LABEL})
-        df_base["cost_idr_num"] = pd.to_numeric(df_base.get("cost_idr", 0), errors="coerce").fillna(0)
-        df_base["gas_used_num"] = pd.to_numeric(df_base.get("gas_used", 0), errors="coerce").fillna(0)
-        df_base["gas_price_num"] = pd.to_numeric(df_base.get("gas_price_wei", 0), errors="coerce").fillna(0)
-
-        def short_tx(x: str) -> str:
-            x = str(x or "")
-            return x[:6] + "…" + x[-4:] if len(x) > 12 else x
-
-        def explorer_tx_url(network: str, tx: str) -> str:
-            base = {
-                "Ethereum": "https://etherscan.io/tx/{}",
-                "Sepolia": "https://sepolia.etherscan.io/tx/{}",
-                "Arbitrum": "https://arbiscan.io/tx/{}",
-                "Arbitrum One": "https://arbiscan.io/tx/{}",
-                "Arbitrum Sepolia": "https://sepolia.arbiscan.io/tx/{}",
-                "Polygon": "https://polygonscan.com/tx/{}",
-                "Polygon Amoy": "https://amoy.polygonscan.com/tx/{}",
-            }.get(str(network), "https://etherscan.io/tx/{}")
-            return base.format(tx)
-
-        fc1, fc2, fc3, fc4, fc5, fc6, fc7 = st.columns([1.4, 1, 1, 1, 1, 1, 1])
-        with fc1:
-            dmin = df_base["ts"].min(); dmax = df_base["ts"].max()
-            date_range = st.date_input(
-                "Tanggal",
-                value=(None if pd.isna(dmin) else dmin.date(),
-                       None if pd.isna(dmax) else dmax.date())
-            )
-        with fc2:
-            f_net = st.selectbox("Network", ["(All)"] + sorted(df_base["network"].dropna().astype(str).unique().tolist()), index=0)
-        with fc3:
-            f_fn = st.selectbox(
-                "Function",
-                ["(All)"] + sorted(df_base["fn"].dropna().astype(str).unique().tolist()),
-                index=0,
-                help=f"'{UNPARSED_LABEL}' berarti nama fungsi tidak terdeteksi dari data transaksi/ABI."
-            )
-        hide_unknown_default = (f_fn != "(All)")
-        with fc4:
-            hide_unknown = st.checkbox(f"Sembunyikan ({UNPARSED_LABEL})", value=hide_unknown_default)
-        with fc5:
-            do_smooth = st.checkbox("Smoothing (7-pt)", value=False)
-        with fc6:
-            line_log = st.checkbox("Line: log scale (Y)", value=False)
-        with fc7:
-            scatter_scale = st.selectbox("Scatter scale", ["linear", "log x", "log y", "log x & y"], index=0)
-
-        # Apply filters
-        df_plot = df_base.copy()
-        if isinstance(date_range, (list, tuple)) and len(date_range) == 2:
-            start, end = date_range
-            if start:
-                df_plot = df_plot[df_plot["ts"] >= pd.Timestamp(start)]
-            if end:
-                df_plot = df_plot[df_plot["ts"] < (pd.Timestamp(end) + pd.Timedelta(days=1))]
-        if f_net != "(All)":
-            df_plot = df_plot[df_plot["network"] == f_net]
-        if f_fn != "(All)":
-            df_plot = df_plot[df_plot["fn"] == f_fn]
-        if hide_unknown or (f_fn != "(All)"):
-            df_plot = df_plot[df_plot["fn"] != UNPARSED_LABEL]
-
-        # Stats & downloads
-        df_filtered_for_stats = df_base.copy()
-        if isinstance(date_range, (list, tuple)) and len(date_range) == 2:
-            start, end = date_range
-            if start:
-                df_filtered_for_stats = df_filtered_for_stats[df_filtered_for_stats["ts"] >= pd.Timestamp(start)]
-            if end:
-                df_filtered_for_stats = df_filtered_for_stats[df_filtered_for_stats["ts"] < (pd.Timestamp(end) + pd.Timedelta(days=1))]
-        if f_net != "(All)":
-            df_filtered_for_stats = df_filtered_for_stats[df_filtered_for_stats["network"] == f_net]
-        if f_fn != "(All)":
-            df_filtered_for_stats = df_filtered_for_stats[df_filtered_for_stats["fn"] == f_fn]
-
-        total_rows_stats = len(df_filtered_for_stats)
-        unparsed_count = int((df_filtered_for_stats["fn"] == UNPARSED_LABEL).sum())
-        pct_unparsed = (unparsed_count / total_rows_stats * 100.0) if total_rows_stats > 0 else 0.0
-
-        b1, b2, b3 = st.columns([2, 1, 1])
-        with b1:
-            st.caption(
-                f"Menampilkan **{len(df_plot):,}** transaksi"
-                + (f" | Network: **{f_net}**"  if f_net != "(All)" else "")
-                + (f" | Function: **{f_fn}**"  if f_fn != "(All)" else "")
-                + (f" | Unparsed: **{pct_unparsed:.1f}%**" if total_rows_stats > 0 else "")
-            )
-        with b2:
-            helper_cols = ["cost_idr_num", "gas_used_num", "gas_price_num", "ts", "fn", "fn_raw"]
-            st.download_button(
-                "⬇️ Download CSV (Filtered)",
-                data=csv_bytes(df_plot.drop(columns=helper_cols, errors="ignore")),
-                file_name="vision_filtered.csv",
-                mime="text/csv",
-                use_container_width=True,
-            )
-        with b3:
-            df_unparsed_filtered = df_filtered_for_stats[df_filtered_for_stats["fn"] == UNPARSED_LABEL]
-            st.download_button(
-                "⬇️ Unparsed CSV",
-                data=csv_bytes(df_unparsed_filtered.drop(columns=helper_cols, errors="ignore")),
-                file_name="vision_unparsed_filtered.csv",
-                mime="text/csv",
-                use_container_width=True,
-                disabled=df_unparsed_filtered.empty,
-            )
-
-        # Charts
-        g1, g2 = st.columns(2)
-        with g1:
-            ts = df_plot.dropna(subset=["ts"]).sort_values("ts")
-            if not ts.empty:
-                y = "cost_idr_num"
-                if do_smooth and len(ts) >= 7:
-                    ts = ts.assign(cost_smooth=ts.groupby("network")[y].transform(lambda s: s.rolling(7, min_periods=1).mean()))
-                    y = "cost_smooth"
-                fig = px.line(
-                    ts, x="ts", y=y, color="network", markers=not do_smooth,
-                    title="Biaya per Transaksi (Rp) vs Waktu",
-                    labels={"ts": "Waktu", y: "Biaya (Rp)", "network": "Jaringan"},
+        with st.expander("Ingest data (NDJSON/CSV) → DuckDB", expanded=False):
+            left, right = st.columns(2)
+            with left:
+                cs = st.file_uploader(
+                    "Upload CSV (dari STC-Vision)",
+                    type=None, key="csv_cost"
                 )
-                if line_log:
+            with right:
+                nd = st.file_uploader("Upload NDJSON (vision_costs.ndjson / jsonl)", type=["ndjson", "jsonl"], key="nd_cost")
+
+            # === Templates / samples ===
+            tpl_cost = pd.DataFrame(columns=[
+                "Network", "Tx Hash", "From", "To", "Block", "Gas Used", "Gas Price (Gwei)",
+                "Estimated Fee (ETH)", "Estimated Fee (Rp)", "Contract", "Function", "Timestamp", "Status"
+            ]).head(0)
+            c1, c2 = st.columns(2)
+            with c1:
+                st.download_button(
+                    "⬇️ Template CSV (Vision)",
+                    data=csv_bytes(tpl_cost),
+                    file_name="vision_template.csv",
+                    mime="text/csv",
+                    use_container_width=True
+                )
+            with c2:
+                vision_sample_rows = [{
+                    "id": "demo::bookHotel", "project": "STC", "network": "Sepolia",
+                    "timestamp": "2025-08-12T09:45:00Z", "tx_hash": "0xabc123...",
+                    "contract": "SmartReservation", "function_name": "bookHotel",
+                    "block_number": 123456, "gas_used": 21000, "gas_price_wei": 22500000000,
+                    "cost_eth": 0.0005, "cost_idr": 15000, "meta_json": "{\"status\":\"Success\"}"
+                }]
+                ndjson_bytes = ("\n".join(json.dumps(r) for r in vision_sample_rows)).encode("utf-8")
+                st.download_button(
+                    "⬇️ Contoh NDJSON (Vision)",
+                    data=ndjson_bytes,
+                    file_name="vision_sample.ndjson",
+                    mime="application/x-ndjson",
+                    use_container_width=True
+                )
+
+            # === NDJSON ingest ===
+            if nd is not None:
+                rows = []
+                for line in nd:
+                    if not line:
+                        continue
+                    try:
+                        rows.append(json.loads(line.decode("utf-8")))
+                    except Exception:
+                        pass
+
+                if rows:
+                    d = pd.DataFrame(rows)
+                    if "id" not in d.columns:
+                        d["id"] = d.apply(lambda r: f"{r.get('tx_hash','')}::{(r.get('function_name') or '')}".strip(), axis=1)
+                    if "meta_json" not in d.columns:
+                        if "meta" in d.columns:
+                            d["meta_json"] = d["meta"].apply(lambda x: json.dumps(x) if isinstance(x, dict) else (x if x else "{}"))
+                        else:
+                            d["meta_json"] = "{}"
+
+                    cols = [
+                        "id", "project", "network", "timestamp", "tx_hash", "contract", "function_name",
+                        "block_number", "gas_used", "gas_price_wei", "cost_eth", "cost_idr", "meta_json"
+                    ]
+                    for c in cols:
+                        if c not in d.columns:
+                            d[c] = None
+
+                    d["project"]   = d.get("project").fillna("STC")
+                    d["timestamp"] = pd.to_datetime(d["timestamp"], errors="coerce").fillna(pd.Timestamp.utcnow())
+                    for numc in ["block_number", "gas_used", "gas_price_wei", "cost_eth", "cost_idr"]:
+                        d[numc] = pd.to_numeric(d[numc], errors="coerce")
+
+                    ing += upsert("vision_costs", d, ["id"], cols)
+
+            # === CSV ingest ===
+            if cs is not None:
+                raw = read_csv_any(cs)
+                if not raw.empty:
+                    d = map_csv_cost(raw)
+                    ing += upsert("vision_costs", d, ["id"], d.columns.tolist())
+                else:
+                    st.warning("CSV kosong atau tidak terbaca.")
+
+            if ing:
+                st.success(f"{ing} baris masuk ke vision_costs.")
+
+        # ==== Load & tampilkan data (DI LUAR EXPANDER, masih di halaman) ====
+        want_load = st.session_state.get("load_existing", False)
+        no_new_upload = (st.session_state.get("nd_cost") is None and st.session_state.get("csv_cost") is None)
+        if no_new_upload and not want_load:
+            st.info("Belum ada data cost untuk sesi ini. Upload NDJSON/CSV atau aktifkan ‘Load existing stored data’ di sidebar.")
+            st.stop()
+
+        con = get_conn()
+        df = con.execute("SELECT * FROM vision_costs ORDER BY timestamp DESC").df()
+        con.close()
+
+        if df.empty:
+            st.info("Belum ada data cost.")
+        else:
+            # Ringkasan
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Total Rows", f"{len(df):,}")
+            c2.metric("Unique Tx", f"{df['tx_hash'].nunique():,}" if 'tx_hash' in df else "—")
+            c3.metric("Total IDR", f"{int(pd.to_numeric(df.get('cost_idr', 0), errors='coerce').fillna(0).sum()):,}")
+
+            st.markdown("### Detail Vision Costs")
+            st.dataframe(df, use_container_width=True)
+            st.download_button(
+                "⬇️ Download CSV (All)",
+                data=csv_bytes(df),
+                file_name="vision_costs_all.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
+
+            # ====== Filters & plotting (with explorer links) ======
+            UNPARSED_LABEL = "⚠ Unparsed Function"
+
+            df_base = df.copy()
+            df_base["ts"] = pd.to_datetime(df_base["timestamp"], errors="coerce")
+            df_base["fn_raw"] = df_base["function_name"]
+            df_base["fn"] = df_base["fn_raw"].fillna(UNPARSED_LABEL).replace({"(unknown)": UNPARSED_LABEL})
+            df_base["cost_idr_num"] = pd.to_numeric(df_base.get("cost_idr", 0), errors="coerce").fillna(0)
+            df_base["gas_used_num"] = pd.to_numeric(df_base.get("gas_used", 0), errors="coerce").fillna(0)
+            df_base["gas_price_num"] = pd.to_numeric(df_base.get("gas_price_wei", 0), errors="coerce").fillna(0)
+
+            def short_tx(x: str) -> str:
+                x = str(x or "")
+                return x[:6] + "…" + x[-4:] if len(x) > 12 else x
+
+            def explorer_tx_url(network: str, tx: str) -> str:
+                base = {
+                    "Ethereum": "https://etherscan.io/tx/{}",
+                    "Sepolia": "https://sepolia.etherscan.io/tx/{}",
+                    "Arbitrum": "https://arbiscan.io/tx/{}",
+                    "Arbitrum One": "https://arbiscan.io/tx/{}",
+                    "Arbitrum Sepolia": "https://sepolia.arbiscan.io/tx/{}",
+                    "Polygon": "https://polygonscan.com/tx/{}",
+                    "Polygon Amoy": "https://amoy.polygonscan.com/tx/{}",
+                }.get(str(network), "https://etherscan.io/tx/{}")
+                return base.format(tx)
+
+            fc1, fc2, fc3, fc4, fc5, fc6, fc7 = st.columns([1.4, 1, 1, 1, 1, 1, 1])
+            with fc1:
+                dmin = df_base["ts"].min(); dmax = df_base["ts"].max()
+                date_range = st.date_input(
+                    "Tanggal",
+                    value=(None if pd.isna(dmin) else dmin.date(),
+                           None if pd.isna(dmax) else dmax.date())
+                )
+            with fc2:
+                f_net = st.selectbox("Network", ["(All)"] + sorted(df_base["network"].dropna().astype(str).unique().tolist()), index=0)
+            with fc3:
+                f_fn = st.selectbox(
+                    "Function",
+                    ["(All)"] + sorted(df_base["fn"].dropna().astype(str).unique().tolist()),
+                    index=0,
+                    help=f"'{UNPARSED_LABEL}' berarti nama fungsi tidak terdeteksi dari data transaksi/ABI."
+                )
+            hide_unknown_default = (f_fn != "(All)")
+            with fc4:
+                hide_unknown = st.checkbox(f"Sembunyikan ({UNPARSED_LABEL})", value=hide_unknown_default)
+            with fc5:
+                do_smooth = st.checkbox("Smoothing (7-pt)", value=False)
+            with fc6:
+                line_log = st.checkbox("Line: log scale (Y)", value=False)
+            with fc7:
+                scatter_scale = st.selectbox("Scatter scale", ["linear", "log x", "log y", "log x & y"], index=0)
+
+            # Apply filters
+            df_plot = df_base.copy()
+            if isinstance(date_range, (list, tuple)) and len(date_range) == 2:
+                start, end = date_range
+                if start:
+                    df_plot = df_plot[df_plot["ts"] >= pd.Timestamp(start)]
+                if end:
+                    df_plot = df_plot[df_plot["ts"] < (pd.Timestamp(end) + pd.Timedelta(days=1))]
+            if f_net != "(All)":
+                df_plot = df_plot[df_plot["network"] == f_net]
+            if f_fn != "(All)":
+                df_plot = df_plot[df_plot["fn"] == f_fn]
+            if hide_unknown or (f_fn != "(All)"):
+                df_plot = df_plot[df_plot["fn"] != UNPARSED_LABEL]
+
+            # Stats & downloads
+            df_filtered_for_stats = df_base.copy()
+            if isinstance(date_range, (list, tuple)) and len(date_range) == 2:
+                start, end = date_range
+                if start:
+                    df_filtered_for_stats = df_filtered_for_stats[df_filtered_for_stats["ts"] >= pd.Timestamp(start)]
+                if end:
+                    df_filtered_for_stats = df_filtered_for_stats[df_filtered_for_stats["ts"] < (pd.Timestamp(end) + pd.Timedelta(days=1))]
+            if f_net != "(All)":
+                df_filtered_for_stats = df_filtered_for_stats[df_filtered_for_stats["network"] == f_net]
+            if f_fn != "(All)":
+                df_filtered_for_stats = df_filtered_for_stats[df_filtered_for_stats["fn"] == f_fn]
+
+            total_rows_stats = len(df_filtered_for_stats)
+            unparsed_count = int((df_filtered_for_stats["fn"] == UNPARSED_LABEL).sum())
+            pct_unparsed = (unparsed_count / total_rows_stats * 100.0) if total_rows_stats > 0 else 0.0
+
+            b1, b2, b3 = st.columns([2, 1, 1])
+            with b1:
+                st.caption(
+                    f"Menampilkan **{len(df_plot):,}** transaksi"
+                    + (f" | Network: **{f_net}**"  if f_net != "(All)" else "")
+                    + (f" | Function: **{f_fn}**"  if f_fn != "(All)" else "")
+                    + (f" | Unparsed: **{pct_unparsed:.1f}%**" if total_rows_stats > 0 else "")
+                )    
+            with b2:
+                helper_cols = ["cost_idr_num", "gas_used_num", "gas_price_num", "ts", "fn", "fn_raw"]
+                st.download_button(
+                    "⬇️ Download CSV (Filtered)",
+                    data=csv_bytes(df_plot.drop(columns=helper_cols, errors="ignore")),
+                    file_name="vision_filtered.csv",
+                    mime="text/csv",
+                    use_container_width=True,
+                )
+            with b3:
+                df_unparsed_filtered = df_filtered_for_stats[df_filtered_for_stats["fn"] == UNPARSED_LABEL]
+                st.download_button(
+                    "⬇️ Unparsed CSV",
+                    data=csv_bytes(df_unparsed_filtered.drop(columns=helper_cols, errors="ignore")),
+                    file_name="vision_unparsed_filtered.csv",
+                    mime="text/csv",
+                    use_container_width=True,
+                    disabled=df_unparsed_filtered.empty,
+                )
+
+            # Charts
+            g1, g2 = st.columns(2)
+            with g1:
+                ts = df_plot.dropna(subset=["ts"]).sort_values("ts")
+                if not ts.empty:
+                    y = "cost_idr_num"
+                    if do_smooth and len(ts) >= 7:
+                        ts = ts.assign(cost_smooth=ts.groupby("network")[y].transform(lambda s: s.rolling(7, min_periods=1).mean()))
+                        y = "cost_smooth"
+                    fig = px.line(
+                        ts, x="ts", y=y, color="network", markers=not do_smooth,
+                        title="Biaya per Transaksi (Rp) vs Waktu",
+                        labels={"ts": "Waktu", y: "Biaya (Rp)", "network": "Jaringan"},
+                    )
+                    if line_log:
+                        fig.update_yaxes(type="log")
+                    st.plotly_chart(fig, use_container_width=True)
+
+            with g2:
+                by_fn = (
+                    df_plot.groupby("fn", as_index=False)["cost_idr_num"]
+                    .sum()
+                    .sort_values("cost_idr_num", ascending=False)
+                    .head(15)
+                )
+                if not by_fn.empty:
+                    fig = px.bar(
+                        by_fn, x="fn", y="cost_idr_num", color="fn", text_auto=True,
+                        title="Total Biaya per Function (Rp) — Top 15",
+                        labels={"fn": "Function", "cost_idr_num": "Total Biaya (Rp)"},
+                        color_discrete_map={UNPARSED_LABEL: "#F59E0B"},
+                    )
+                    fig.update_xaxes(categoryorder="total descending")
+                    st.plotly_chart(fig, use_container_width=True)
+
+            sc = df_plot[(df_plot["gas_used_num"] > 0) & (df_plot["gas_price_num"] > 0)].copy()
+            if not sc.empty:
+                sc["tx_short"] = sc["tx_hash"].astype(str).map(short_tx)
+                sc["cost_str"] = sc["cost_idr_num"].round().astype(int).map(lambda v: f"{v:,}")
+                sc["gas_used_str"] = sc["gas_used_num"].round().astype(int).map(lambda v: f"{v:,}")
+                sc["gas_price_str"] = sc["gas_price_num"].round().astype(int).map(lambda v: f"{v:,}")
+                sc["explorer_url"] = sc.apply(lambda r: explorer_tx_url(r["network"], r["tx_hash"]), axis=1)
+
+                fig = px.scatter(
+                    sc, x="gas_used_num", y="gas_price_num", size="cost_idr_num", color="network",
+                    title="Gas Used vs Gas Price (size = Biaya Rp)",
+                    labels={"gas_used_num": "Gas Used", "gas_price_num": "Gas Price (wei)", "network": "Jaringan"},
+                    hover_data=None,
+                )
+                fig.update_traces(
+                    text=sc.apply(
+                        lambda r: (
+                            f"Function={r['fn']}"
+                            f"<br>Tx={r['tx_short']}"
+                            f"<br>Gas Used={r['gas_used_str']}"
+                            f"<br>Gas Price (wei)={r['gas_price_str']}"
+                            f"<br>Biaya (Rp)={r['cost_str']}"
+                            f"<br>(Buka detail di tabel Unparsed di bawah)"
+                        ),
+                        axis=1,
+                    ),
+                    hovertemplate="%{text}",
+                )
+                if scatter_scale in ("log x", "log x & y"):
+                    fig.update_xaxes(type="log")
+                if scatter_scale in ("log y", "log x & y"):
                     fig.update_yaxes(type="log")
                 st.plotly_chart(fig, use_container_width=True)
 
-        with g2:
-            by_fn = (
-                df_plot.groupby("fn", as_index=False)["cost_idr_num"]
-                .sum()
-                .sort_values("cost_idr_num", ascending=False)
-                .head(15)
-            )
-            if not by_fn.empty:
-                fig = px.bar(
-                    by_fn, x="fn", y="cost_idr_num", color="fn", text_auto=True,
-                    title="Total Biaya per Function (Rp) — Top 15",
-                    labels={"fn": "Function", "cost_idr_num": "Total Biaya (Rp)"},
-                    color_discrete_map={UNPARSED_LABEL: "#F59E0B"},
+            # Tabel Unparsed
+            unparsed = df_base[df_base["fn"] == UNPARSED_LABEL].copy()
+            if not unparsed.empty:
+                unparsed["Explorer"] = unparsed.apply(lambda r: explorer_tx_url(r["network"], r["tx_hash"]), axis=1)
+                unparsed["Tx (short)"] = unparsed["tx_hash"].map(short_tx)
+                st.markdown("#### 🔎 Unparsed Function — periksa di explorer")
+                st.dataframe(
+                    unparsed[["timestamp", "network", "contract", "Tx (short)", "Explorer", "cost_idr"]],
+                    use_container_width=True,
+                    column_config={
+                        "Explorer": st.column_config.LinkColumn("Explorer", display_text="Open"),
+                        "cost_idr": st.column_config.NumberColumn("Biaya (Rp)", format="%,d"),
+                        "timestamp": st.column_config.DatetimeColumn("Waktu"),
+                    },
                 )
-                fig.update_xaxes(categoryorder="total descending")
-                st.plotly_chart(fig, use_container_width=True)
-
-        sc = df_plot[(df_plot["gas_used_num"] > 0) & (df_plot["gas_price_num"] > 0)].copy()
-        if not sc.empty:
-            sc["tx_short"] = sc["tx_hash"].astype(str).map(short_tx)
-            sc["cost_str"] = sc["cost_idr_num"].round().astype(int).map(lambda v: f"{v:,}")
-            sc["gas_used_str"] = sc["gas_used_num"].round().astype(int).map(lambda v: f"{v:,}")
-            sc["gas_price_str"] = sc["gas_price_num"].round().astype(int).map(lambda v: f"{v:,}")
-            sc["explorer_url"] = sc.apply(lambda r: explorer_tx_url(r["network"], r["tx_hash"]), axis=1)
-
-            fig = px.scatter(
-                sc, x="gas_used_num", y="gas_price_num", size="cost_idr_num", color="network",
-                title="Gas Used vs Gas Price (size = Biaya Rp)",
-                labels={"gas_used_num": "Gas Used", "gas_price_num": "Gas Price (wei)", "network": "Jaringan"},
-                hover_data=None,
-            )
-            fig.update_traces(
-                text=sc.apply(
-                    lambda r: (
-                        f"Function={r['fn']}"
-                        f"<br>Tx={r['tx_short']}"
-                        f"<br>Gas Used={r['gas_used_str']}"
-                        f"<br>Gas Price (wei)={r['gas_price_str']}"
-                        f"<br>Biaya (Rp)={r['cost_str']}"
-                        f"<br>(Buka detail di tabel Unparsed di bawah)"
-                    ),
-                    axis=1,
-                ),
-                hovertemplate="%{text}",
-            )
-            if scatter_scale in ("log x", "log x & y"):
-                fig.update_xaxes(type="log")
-            if scatter_scale in ("log y", "log x & y"):
-                fig.update_yaxes(type="log")
-            st.plotly_chart(fig, use_container_width=True)
-
-        # Tabel Unparsed
-        unparsed = df_base[df_base["fn"] == UNPARSED_LABEL].copy()
-        if not unparsed.empty:
-            unparsed["Explorer"] = unparsed.apply(lambda r: explorer_tx_url(r["network"], r["tx_hash"]), axis=1)
-            unparsed["Tx (short)"] = unparsed["tx_hash"].map(short_tx)
-            st.markdown("#### 🔎 Unparsed Function — periksa di explorer")
-            st.dataframe(
-                unparsed[["timestamp", "network", "contract", "Tx (short)", "Explorer", "cost_idr"]],
-                use_container_width=True,
-                column_config={
-                    "Explorer": st.column_config.LinkColumn("Explorer", display_text="Open"),
-                    "cost_idr": st.column_config.NumberColumn("Biaya (Rp)", format="%,d"),
-                    "timestamp": st.column_config.DatetimeColumn("Waktu"),
-                },
-            )
-            st.caption(
-                "Catatan: Unparsed berarti nama fungsi tidak terdeteksi dari data transaksi. Cek ABI/source di explorer."
-            )
+                st.caption("Catatan: Unparsed berarti nama fungsi tidak terdeteksi dari data transaksi. Cek ABI/source di explorer.")
 
 # -------------------------------
 # SECURITY (SWC)
