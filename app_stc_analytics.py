@@ -905,7 +905,7 @@ def map_csv_cost(df_raw: pd.DataFrame) -> pd.DataFrame:
 # -------------------------------
 # SECURITY (SWC)
 # -------------------------------
-elif page == "Security (SWC)":
+if page == "Security (SWC)":
     st.title("🛡️ Security Analytics — STC for SWC")
 
     # --- mapping CSV/NDJSON -> schema + id fallback + dedup ---
