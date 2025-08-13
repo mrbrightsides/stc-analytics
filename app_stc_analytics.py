@@ -1,11 +1,11 @@
-import os, json, re, io
+import os, io
+import streamlit as st
 import duckdb
 import pandas as pd
 import plotly.express as px
-import streamlit as st
+import json, re, hashlib
 from datetime import datetime
 from pathlib import Path
-import hashlib
 
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 
