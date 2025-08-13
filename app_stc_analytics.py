@@ -505,11 +505,11 @@ if page == "Cost (Vision)":
         left, right = st.columns(2)
         with left:
             nd = st.file_uploader(
-                "Upload NDJSON (vision_costs.ndjson / jsonl)",
-                type=["ndjson", "jsonl"], key="nd_cost"
+                "Upload CSV (dari STC-Vision)",
+                type=None, key="csv_cost"
             )
         with right:
-            cs = st.file_uploader("Upload CSV (dari STC-Vision)", type=None, key="csv_cost")
+            nd = st.file_uploader("Upload NDJSON (vision_costs.ndjson / jsonl)", type=["ndjson", "jsonl"], key="nd_cost")
 
         # === Templates / samples ===
         tpl_cost = pd.DataFrame(columns=[
