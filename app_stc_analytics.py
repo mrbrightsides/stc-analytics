@@ -1244,8 +1244,27 @@ elif page == "Security (SWC)":
             aggfunc="count", fill_value=0
         )
         if not pivot.empty:
-            fig = px.imshow(pivot, text_auto=True, aspect="auto", title="SWC-ID × Severity (count)")
+            fig = px.imshow(
+                pivot,
+                text_auto=True, aspect="auto",
+                title="SWC-ID × Severity (count)",
+                template="plotly_white",
+                color_continuous_scale="Blues"
+            )
             st.plotly_chart(fig, use_container_width=True)
+            fig_export_buttons(fig, "swc_heatmap")
+
+        by_sev = swc_plot.groupby("sev", as_index=False).size()
+        if not by_sev.empty:
+            fig = px.bar(
+                by_sev, x="sev", y="size", color="sev",
+                title="Findings by Severity",
+                labels={"sev":"Severity", "size":"Count"},
+                color_discrete_sequence=DEFAULT_COLORS
+            )
+            fig.update_xaxes(categoryorder="array", categoryarray=["Critical","High","Medium","Low","(unknown)"])
+            st.plotly_chart(fig, use_container_width=True)
+            fig_export_buttons(fig, "swc_by_severity")
 
         # ====== table ======
         st.markdown("### Detail Temuan")
