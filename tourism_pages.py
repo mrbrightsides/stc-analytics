@@ -231,17 +231,45 @@ def get_conn():
 def upsert(table: str, df: pd.DataFrame, key_cols: list, cols: list) -> int:
     if df is None or df.empty:
         return 0
+
+    # Pastikan semua kolom ada
     missing = [c for c in cols if c not in df.columns]
     if missing:
         raise ValueError(f"Missing columns for {table}: {missing}")
+
+    # 1) Ambil kolom yang dipakai + bersihin key
+    d = df[cols].copy()
+    for k in key_cols:
+        # key wajib string non-null, trim spasi
+        d[k] = d[k].astype(str).fillna("").str.strip()
+    # Buang baris yang key-nya kosong
+    d = d[d[key_cols].apply(lambda r: all(bool(x) for x in r), axis=1)]
+    # 2) Dedup di batch upload (keep last)
+    d = d.drop_duplicates(subset=key_cols, keep="last")
+
     con = get_conn()
+    # Temp staging sesuai struktur table
     con.execute(f"CREATE TEMP TABLE stg AS SELECT {', '.join(cols)} FROM {table} WITH NO DATA;")
-    con.register("df_stage", df[cols])
+    con.register("df_stage", d)
     con.execute("INSERT INTO stg SELECT * FROM df_stage;")
-    where = " AND ".join([f"{table}.{k}=stg.{k}" for k in key_cols])
-    con.execute(f"DELETE FROM {table} USING stg WHERE {where};")
-    con.execute(f"INSERT INTO {table} SELECT * FROM stg;")
-    n = con.execute("SELECT COUNT(*) FROM stg").fetchone()[0]
+
+    # 3) Dedup lagi di sisi DuckDB untuk jaga-jaga
+    part = ", ".join(key_cols)
+    con.execute(f"""
+        CREATE TEMP TABLE stg_dedup AS
+        SELECT * FROM (
+            SELECT *,
+                   ROW_NUMBER() OVER (PARTITION BY {part} ORDER BY 1) AS rn
+            FROM stg
+        ) t
+        WHERE rn = 1;
+    """)
+
+    # 4) Hapus yang bentrok di tabel target, lalu insert hasil dedup
+    where = " AND ".join([f"{table}.{k}=stg_dedup.{k}" for k in key_cols])
+    con.execute(f"DELETE FROM {table} USING stg_dedup WHERE {where};")
+    con.execute(f"INSERT INTO {table} SELECT {', '.join(cols)} FROM stg_dedup;")
+    n = con.execute("SELECT COUNT(*) FROM stg_dedup").fetchone()[0]
     con.close()
     return n
 
