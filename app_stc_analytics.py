@@ -504,7 +504,7 @@ if page == "Cost (Vision)":
     with st.expander("Ingest data (NDJSON/CSV) → DuckDB", expanded=False):
         left, right = st.columns(2)
         with left:
-            nd = st.file_uploader(
+            cs = st.file_uploader(
                 "Upload CSV (dari STC-Vision)",
                 type=None, key="csv_cost"
             )
