@@ -3,7 +3,6 @@ import streamlit as st
 import duckdb
 import pandas as pd
 import plotly.express as px
-import plotly.express as px
 pio.templates.default = "plotly_white"
 DEFAULT_COLORS = px.colors.qualitative.Set2
 import json, re, hashlib
