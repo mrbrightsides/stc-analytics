@@ -461,40 +461,69 @@ def mark_outliers_iqr(series: pd.Series) -> pd.Series:
 # -------------------------------
 # Helpers (DB)
 # -------------------------------
-def upsert(table, d, key_cols, col_list=None):
-    if d is None or d.empty:
+import pandas as pd
+from pandas.api import types as pdt
+
+def upsert(table: str, df: pd.DataFrame, key_cols: list, col_list: list | None = None) -> int:
+    """
+    Upsert ke DuckDB:
+      - Validasi kolom (kalau col_list diberikan)
+      - Bersihkan key cols (string, strip)
+      - Drop duplikat per key (keep='last')
+      - Normalisasi semua datetime ke naive (UTC tz removed)
+      - Masukkan ke temp staging lalu DELETE/INSERT (upsert)
+    """
+    if df is None or df.empty:
         return 0
 
-    # Validasi kolom bila col_list diberikan
-    if col_list:
-        missing = [c for c in col_list if c not in d.columns]
+    # Pastikan key columns ada
+    for k in key_cols:
+        if k not in df.columns:
+            df[k] = ""
+
+    # Pakai urutan kolom target yang kamu inginkan
+    if col_list is None:
+        col_list = df.columns.tolist()
+    else:
+        missing = [c for c in col_list if c not in df.columns]
         if missing:
             raise ValueError(f"Missing columns for {table}: {missing}")
 
-    d = d.copy()
+    d = df[col_list].copy()
 
     # Kunci sebagai string bersih
     for k in key_cols:
         d[k] = d[k].astype(str).fillna("").str.strip()
 
-    # Hilangkan duplikat per key (ambil yang terakhir)
+    # --- NORMALISASI DATETIME ---
+    for c in d.columns:
+        s = d[c]
+        # tz-aware -> UTC -> naive
+        if pdt.is_datetime64tz_dtype(s):
+            d[c] = s.dt.tz_convert("UTC").dt.tz_localize(None)
+        # sudah datetime naive -> biarkan
+        elif pdt.is_datetime64_dtype(s):
+            pass
+        # kolom object yang mungkin string ISO8601 (mis. '2025-08-12T09:45:00Z')
+        elif pdt.is_object_dtype(s):
+            parsed = pd.to_datetime(s, errors="coerce", utc=True)
+            if pdt.is_datetime64_any_dtype(parsed):
+                d[c] = parsed.dt.tz_localize(None)
+
+    # Drop duplikat per key (ambil baris terakhir)
     d = d.drop_duplicates(subset=key_cols, keep="last")
 
-    # Normalisasi datetime tz-aware -> naive
-    for c in d.columns:
-        if str(d[c].dtype).startswith("datetime64[ns,"):
-            d[c] = d[c].dt.tz_localize(None)
-
-    use_cols = col_list if col_list else d.columns.tolist()
     con = get_conn()
     try:
+        # Buat staging table dengan bentuk yang sama
         con.execute(f"CREATE TEMP TABLE stg AS SELECT * FROM {table} WITH NO DATA;")
-        con.register("df_stage", d[use_cols])
+        con.register("df_stage", d[col_list])
         con.execute("INSERT INTO stg SELECT * FROM df_stage;")
 
         key_list = ", ".join(key_cols)
         join_cond = " AND ".join([f"{table}.{k} = d.{k}" for k in key_cols])
 
+        # Upsert: hapus yang key-nya sudah ada, lalu insert staging
         con.execute(f"""
             DELETE FROM {table}
             USING (SELECT DISTINCT {key_list} FROM stg) d
@@ -503,10 +532,9 @@ def upsert(table, d, key_cols, col_list=None):
         con.execute(f"INSERT INTO {table} SELECT * FROM stg;")
 
         n = con.execute("SELECT COUNT(*) FROM stg").fetchone()[0]
-        return n
+        return int(n)
     finally:
         con.close()
-
 
 # -------------------------------
 # Sidebar
