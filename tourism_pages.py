@@ -495,7 +495,7 @@ def render_swc_page():
     no_new_upload = (st.session_state.get("swc_csv") is None and st.session_state.get("swc_nd") is None)
     if no_new_upload and not want_load:
         st.info("Belum ada data temuan SWC untuk sesi ini. Upload CSV/NDJSON atau aktifkan ‘Load existing stored data’.")
-        run()
+        return()
 
     # --- Load data ---
     con = get_conn()
@@ -683,7 +683,7 @@ def render_bench_page():
     no_new_upload = (st.session_state.get("runs_csv") is None) and (st.session_state.get("tx_csv") is None)
     if no_new_upload and not want_load:
         st.info("Belum ada data benchmark untuk sesi ini. Upload bench_runs/bench_tx atau aktifkan ‘Load existing stored data’.")
-        run()
+        return()
 
     con = get_conn()
     runs_df = con.execute("SELECT * FROM bench_runs ORDER BY timestamp DESC").df()
