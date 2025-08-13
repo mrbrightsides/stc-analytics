@@ -1,40 +1,89 @@
-import os, json, re, io
+import os, json, re, io, hashlib
+from datetime import datetime
+from pathlib import Path
+
 import duckdb
 import pandas as pd
 import plotly.express as px
 import streamlit as st
-from datetime import datetime
-from pathlib import Path
-import hashlib
-from tourism_pages import render_tourism_sidebar, render_cost_page, render_swc_page, render_bench_page
+
+# ===== App config (panggilan st.* pertama) =====
+st.set_page_config(page_title="STC Analytics", layout="wide")
+
+# ===== Imports halaman (defensif) =====
+try:
+    from tourism_pages import (
+        render_tourism_sidebar,
+        render_cost_page,
+        render_swc_page,
+        render_bench_page,
+    )
+except Exception as e:
+    def _oops(name):
+        def _f():
+            st.error(f"Gagal memuat `{name}`: {e}")
+        return _f
+    render_tourism_sidebar = _oops("render_tourism_sidebar")
+    render_cost_page       = _oops("render_cost_page")
+    render_swc_page        = _oops("render_swc_page")
+    render_bench_page      = _oops("render_bench_page")
+
 from tools_scan import scan_tool
 from tools_test import test_tool
 from tools_contract import contract_tool
 
+# ===== State hygiene (opsional) =====
+# Bersihkan key lama yang tak terpakai
 for k in ("tool_choice", "module_choice"):
     if k in st.session_state:
         del st.session_state[k]
 
-st.set_page_config(page_title="STC Analytics", layout="wide")
-
+# ===== Top Nav: Modules =====
 MODULES = ["Tourism", "Finance (DeFi)", "NFT/Token", "Supply Chain", "Custom Monitor"]
 module_choice = st.radio("Modules", MODULES, horizontal=True, key="modules_nav_main")
 
 st.divider()
 
-TOOLS = ["Scan", "Test", "Contract"]
-tool_choice = st.radio("Tools", TOOLS, horizontal=True, key=f"tools_nav_main_{module_choice}")
+# ===== Tools Nav (key stabil, reset saat modul berubah) =====
+tool_key = f"tools_nav_main_{module_choice}"
+if tool_key not in st.session_state:
+    # reset pilihan tools jika user pindah modul
+    for k in list(st.session_state.keys()):
+        if k.startswith("tools_nav_main_") and k != tool_key:
+            del st.session_state[k]
 
+TOOLS = ["Scan", "Test", "Contract"]
+tool_choice = st.radio("Tools", TOOLS, horizontal=True, key=tool_key)
+
+# ===== Content =====
 if module_choice == "Tourism":
     render_tourism_sidebar()
+
     t1, t2, t3 = st.tabs(["Cost (Vision)", "Security (SWC)", "Performance (Bench)"])
-     with t1: render_cost_page()
-    with t2: render_swc_page()
-    with t3: render_bench_page()
+
+    with t1:
+        try:
+            render_cost_page()
+        except Exception as e:
+            st.exception(e)
+
+    with t2:
+        try:
+            render_swc_page()
+        except Exception as e:
+            st.exception(e)
+
+    with t3:
+        try:
+            render_bench_page()
+        except Exception as e:
+            st.exception(e)
 else:
     st.info("Module ini **coming soon**. Fokus dulu ke Tourism.")
 
 st.markdown("---")
+
+# ===== Tools panel =====
 if tool_choice == "Scan":
     scan_tool()
 elif tool_choice == "Test":
