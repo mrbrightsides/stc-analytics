@@ -1469,9 +1469,6 @@ Data performa dihasilkan dari **penggabungan (`JOIN`) berdasarkan kolom `run_id`
                     FROM df_stage;
                 """)
 
-                st.write("🔍 Isi run_id dari bench_tx:")
-                st.dataframe(con.execute("SELECT DISTINCT run_id FROM bench_tx").fetchdf())
-
                 con.execute("""
                     DELETE FROM bench_tx USING (
                         SELECT DISTINCT run_id, tx_hash FROM stg
@@ -1479,9 +1476,26 @@ Data performa dihasilkan dari **penggabungan (`JOIN`) berdasarkan kolom `run_id`
                     WHERE bench_tx.run_id = d.run_id AND bench_tx.tx_hash = d.tx_hash;
                 """)
                 con.execute("INSERT INTO bench_tx SELECT * FROM stg;")
+                con.execute("UPDATE bench_runs SET run_id = TRIM(run_id);")
+                con.execute("UPDATE bench_tx   SET run_id = TRIM(run_id);")
+                con.execute("UPDATE bench_runs SET run_id = REGEXP_REPLACE(run_id, '[\\n\\r\\t]', ' ');")
+                con.execute("UPDATE bench_tx   SET run_id = REGEXP_REPLACE(run_id, '[\\n\\r\\t]', ' ');")
+
+                st.write("🔍 Isi run_id dari bench_tx:")
+                st.dataframe(con.execute("SELECT DISTINCT run_id FROM bench_tx").fetchdf())
+
+                match_cnt = con.execute("""
+                    SELECT COUNT(*) AS match_cnt FROM (
+                        SELECT DISTINCT r.run_id
+                        FROM bench_runs r
+                        JOIN bench_tx t ON r.run_id = t.run_id
+                    )
+                """).fetchone()[0]
+
                 n = con.execute("SELECT COUNT(*) FROM stg").fetchone()[0]
+                st.success(f"{n} baris masuk ke bench_tx. run_id match: {match_cnt}")
+
                 con.close()
-                st.success(f"{n} baris masuk ke bench_tx.")
 
         render_bench_validation(runs, tx)
             
