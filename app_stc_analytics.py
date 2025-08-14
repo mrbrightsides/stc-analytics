@@ -395,39 +395,6 @@ def show_help(which: str):
         elif which == "bench":
             st.markdown(HELP_BENCH)
 
-def sample_templates():
-    """Buat sample DF utk user download sebagai template."""
-    cost_cols = ["Network","Tx Hash","From","To","Block","Gas Used","Gas Price (Gwei)","Estimated Fee (ETH)","Estimated Fee (Rp)","Contract","Function","Timestamp","Status"]
-    swc_cols  = ["finding_id","timestamp","network","contract","file","line_start","line_end","swc_id","title","severity","confidence","status","remediation","commit_hash"]
-    runs_cols = ["run_id","timestamp","network","scenario","contract","function_name","concurrency","tx_per_user","tps_avg","tps_peak","p50_ms","p95_ms","success_rate"]
-    tx_cols   = ["run_id","tx_hash","submitted_at","mined_at","latency_ms","status","gas_used","gas_price_wei","block_number","function_name"]
-
-    df_cost = pd.DataFrame([{
-        "Network":"Sepolia","Tx Hash":"0x...","From":"0x...","To":"0x...","Block":123456,
-        "Gas Used":21000,"Gas Price (Gwei)":22.5,"Estimated Fee (ETH)":0.00047,"Estimated Fee (Rp)":15000,
-        "Contract":"SmartReservation","Function":"bookHotel","Timestamp":pd.Timestamp.utcnow().isoformat(),"Status":"Success"
-    }], columns=cost_cols)
-
-    df_swc = pd.DataFrame([{
-        "finding_id":"","timestamp":pd.Timestamp.utcnow().isoformat(),"network":"Arbitrum Sepolia",
-        "contract":"SmartTourismToken","file":"contracts/SmartTourismToken.sol",
-        "line_start":332,"line_end":342,"swc_id":"SWC-108","title":"Potential issue SWC-108 detected",
-        "severity":"Medium","confidence":0.83,"status":"Open","remediation":"Refactor code and add checks","commit_hash":"abc123"
-    }], columns=swc_cols)
-
-    df_runs = pd.DataFrame([{
-        "run_id":"run-001","timestamp":pd.Timestamp.utcnow().isoformat(),"network":"Sepolia","scenario":"LoadTestSmall",
-        "contract":"SmartReservation","function_name":"checkIn","concurrency":50,"tx_per_user":5,
-        "tps_avg":85.2,"tps_peak":110.4,"p50_ms":220,"p95_ms":540,"success_rate":0.97
-    }], columns=runs_cols)
-
-    df_tx = pd.DataFrame([{
-        "run_id":"run-001","tx_hash":"0x...","submitted_at":pd.Timestamp.utcnow().isoformat(),"mined_at":pd.Timestamp.utcnow().isoformat(),
-        "latency_ms":450,"status":"success","gas_used":21000,"gas_price_wei":"22000000000","block_number":123456,"function_name":"checkIn"
-    }], columns=tx_cols)
-
-    return df_cost, df_swc, df_runs, df_tx
-
 def csv_bytes(df: pd.DataFrame) -> bytes:
     buff = io.StringIO()
     df.to_csv(buff, index=False)
