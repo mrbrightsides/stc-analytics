@@ -1085,7 +1085,7 @@ elif page == "Security (SWC)":
 
         df = df.dropna(subset=["timestamp"])  # bersihin row dengan timestamp kosong
         for i, ts in enumerate(df["timestamp"].astype(str).str.strip().unique()[:20]):
-        st.write(f"{i+1:02d}: '{ts}'")
+            st.write(f"{i+1:02d}: '{ts}'")
 
         df["timestamp"] = pd.to_datetime(df["timestamp"].astype(str).str.strip(), errors="coerce")
         invalid_rows = df["timestamp"].isna().sum()
