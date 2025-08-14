@@ -1404,8 +1404,21 @@ Data performa dihasilkan dari **penggabungan (`JOIN`) berdasarkan kolom `run_id`
                 d["mined_at"] = pd.to_datetime(d["mined_at"], errors="coerce")
 
                 con = get_conn()
-                con.execute("CREATE TEMP TABLE stg AS SELECT * FROM bench_tx WITH NO DATA;")
-                d["run_id"] = d["run_id"].astype(str).str.strip()
+                con.execute("""
+                    CREATE TEMP TABLE stg (
+                        run_id TEXT,
+                        tx_hash TEXT,
+                        submitted_at TIMESTAMP,
+                        mined_at TIMESTAMP,
+                        latency_ms INTEGER,
+                        status TEXT,
+                        gas_used INTEGER,
+                        gas_price_wei INTEGER,
+                        block_number INTEGER,
+                        function_name TEXT
+                    );
+                """)
+
                 st.write("📌 Cek kolom final sebelum register:", d[cols].columns.tolist())
                 st.write("📌 Contoh nilai run_id:", d["run_id"].dropna().unique()[:5])
 
