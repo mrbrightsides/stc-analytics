@@ -453,21 +453,6 @@ def generate_dummy_cost():
         for i in range(100)
     ], columns=cost_cols)
 
-# ---- Handler Upload ----
-if uploaded_file is not None:
-    try:
-        lines = uploaded_file.getvalue().decode("utf-8").splitlines()
-        records = [json.loads(line) for line in lines if line.strip()]
-        df_cost = pd.DataFrame.from_records(records)
-        df_cost = normalize_cost_columns(df_cost)
-        st.success("✅ File NDJSON berhasil dimuat.")
-    except Exception as e:
-        df_cost = generate_dummy_cost()
-        st.warning(f"Gagal parsing NDJSON. Menampilkan data dummy. Error: {e}")
-else:
-    df_cost = generate_dummy_cost()
-    st.info("🔹 Menampilkan data dummy karena belum ada file di-upload.")
-
     df_swc = pd.DataFrame([{
         "finding_id":"","timestamp":pd.Timestamp.utcnow().isoformat(),"network":"Arbitrum Sepolia",
         "contract":"SmartTourismToken","file":"contracts/SmartTourismToken.sol",
@@ -487,6 +472,21 @@ else:
     }], columns=tx_cols)
 
     return df_cost, df_swc, df_runs, df_tx
+
+# ---- Handler Upload ----
+if uploaded_file is not None:
+    try:
+        lines = uploaded_file.getvalue().decode("utf-8").splitlines()
+        records = [json.loads(line) for line in lines if line.strip()]
+        df_cost = pd.DataFrame.from_records(records)
+        df_cost = normalize_cost_columns(df_cost)
+        st.success("✅ File NDJSON berhasil dimuat.")
+    except Exception as e:
+        df_cost = generate_dummy_cost()
+        st.warning(f"Gagal parsing NDJSON. Menampilkan data dummy. Error: {e}")
+else:
+    df_cost = generate_dummy_cost()
+    st.info("🔹 Menampilkan data dummy karena belum ada file di-upload.")
 
 def csv_bytes(df: pd.DataFrame) -> bytes:
     buff = io.StringIO()
