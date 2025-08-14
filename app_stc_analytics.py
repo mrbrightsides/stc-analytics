@@ -1355,6 +1355,33 @@ elif page == "Performance (Bench)":
                 st.success(f"{n} baris masuk ke bench_runs.")
 
         # ---- bench_tx ----
+        ℹ️ Penting! Unggah Dua File CSV secara Bersamaan
+
+Untuk menjalankan analisis performa dengan akurat, dua file CSV harus diunggah secara bersamaan:
+
+📁 File yang dibutuhkan:
+
+bench_runs.csv – berisi ringkasan pengujian (run ID, skenario, concurrency, TPS, latency, dll).
+
+bench_tx.csv – berisi detail transaksi dari setiap run (run ID, hash, status, gas used, dll).
+
+🧩 Kenapa harus dua file?
+
+Data performa dihasilkan dari penggabungan (JOIN) berdasarkan kolom run_id. Jika salah satu file tidak tersedia:
+
+Grafik dan metrik seperti TPS vs Concurrency, Latency, dan Success Rate tidak dapat dihitung dengan lengkap.
+
+Data tidak dapat dianalisis secara menyeluruh.
+
+Hasil akan kosong atau tidak valid.
+
+✅ Tips:
+
+Gunakan template CSV yang tersedia di bawah form upload.
+
+Pastikan struktur kolom sesuai, terutama kolom run_id sebagai penghubung utama.
+
+Setelah diunggah, sistem akan menampilkan notifikasi sukses dan mengaktifkan dashboard analitik.
         with col2:
             tx = st.file_uploader("bench_tx.csv", type=None, key="tx_csv")
             if tx is not None:
