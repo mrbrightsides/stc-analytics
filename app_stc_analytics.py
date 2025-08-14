@@ -6,6 +6,7 @@ import plotly.express as px
 import json, re, hashlib
 from datetime import datetime
 from pathlib import Path
+from tools_bench import render_bench_validation
 from tools_bench import render_bench_validation_db
 
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
