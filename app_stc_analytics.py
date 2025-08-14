@@ -1084,8 +1084,6 @@ elif page == "Security (SWC)":
             df.loc[mask, "finding_id"] = fallback[mask]
 
         df = df.dropna(subset=["timestamp"])  # bersihin row dengan timestamp kosong
-        for i, ts in enumerate(df["timestamp"].astype(str).str.strip().unique()[:20]):
-            st.write(f"{i+1:02d}: '{ts}'")
 
         from dateutil import parser
 
