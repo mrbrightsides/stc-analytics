@@ -1376,7 +1376,7 @@ Data performa dihasilkan dari **penggabungan (`JOIN`) berdasarkan kolom `run_id`
 ---
 
 #### ✅ Tips:
-- Gunakan template CSV yang tersedia di bawah form upload.
+- Gunakan template CSV yang tersedia di bawah.
 - Pastikan struktur kolom sesuai, terutama kolom `run_id` sebagai penghubung utama.
 - Setelah diunggah, sistem akan menampilkan notifikasi sukses dan mengaktifkan dashboard analitik.
             """)
