@@ -673,8 +673,9 @@ if page == "Cost (Vision)":
 
         # === Templates / samples ===
         tpl_cost = pd.DataFrame(columns=[
-            "Network", "Tx Hash", "From", "To", "Block", "Gas Used", "Gas Price (Gwei)",
-            "Estimated Fee (ETH)", "Estimated Fee (Rp)", "Contract", "Function", "Timestamp", "Status"
+            "Timestamp", "Network", "Tx Hash", "Contract", "Function",
+            "Block", "Gas Used", "Gas Price (Gwei)",
+            "Estimated Fee (ETH)", "Estimated Fee (Rp)", "Status"
         ]).head(0)
         c1, c2 = st.columns(2)
         with c1:
