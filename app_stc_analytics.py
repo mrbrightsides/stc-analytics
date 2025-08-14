@@ -1357,7 +1357,7 @@ elif page == "Performance (Bench)":
         # ---- bench_tx ----
         with st.expander("📘 Panduan Upload CSV (Wajib Baca)", expanded=True):
             st.markdown("""
-            (### ℹ️ Penting! Unggah Dua File CSV secara Bersamaan
+            ### ℹ️ Penting! Unggah Dua File CSV secara Bersamaan
 
 Untuk menjalankan analisis performa dengan akurat, **dua file CSV harus diunggah secara bersamaan**:
 
@@ -1378,7 +1378,7 @@ Data performa dihasilkan dari **penggabungan (`JOIN`) berdasarkan kolom `run_id`
 #### ✅ Tips:
 - Gunakan template CSV yang tersedia di bawah form upload.
 - Pastikan struktur kolom sesuai, terutama kolom `run_id` sebagai penghubung utama.
-- Setelah diunggah, sistem akan menampilkan notifikasi sukses dan mengaktifkan dashboard analitik.)
+- Setelah diunggah, sistem akan menampilkan notifikasi sukses dan mengaktifkan dashboard analitik.
             """)
 
         with col2:
