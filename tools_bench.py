@@ -1,4 +1,4 @@
-def render_bench_validation(runs, tx):
+def render_bench_validation_db():
     import streamlit as st
     import pandas as pd
 
