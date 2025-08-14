@@ -291,8 +291,8 @@ Semua data disimpan **lokal** di **DuckDB**. Aplikasi ini tidak mengirim data ke
 ---
 
 #### 🙌 Dukungan & kontributor
-- ⭐ **Star / Fork**: [GitHub repo]({https://github.com/mrbrightsides/stc-analytics})
-- Made for STC — _lightweight analytics for web3 dev teams_.
+- ⭐ **Star / Fork**: [GitHub repo](https://github.com/mrbrightsides/stc-analytics/tree/main)
+- Built with 💙 by [ELPEEF](https://elpeef.com)
 
 Versi UI: v1.0 • Streamlit + DuckDB • Theme Dark
 """,
