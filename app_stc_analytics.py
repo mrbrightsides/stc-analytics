@@ -1423,10 +1423,10 @@ Data performa dihasilkan dari **penggabungan (`JOIN`) berdasarkan kolom `run_id`
                 st.write("📌 Contoh nilai run_id:", d["run_id"].dropna().unique()[:5])
 
                 # Pastikan semua kolom punya tipe data sesuai DuckDB
-                d["latency_ms"] = pd.to_numeric(d["latency_ms"], errors="coerce").fillna(0).astype("int")
-                d["gas_used"] = pd.to_numeric(d["gas_used"], errors="coerce").fillna(0).astype("int")
-                d["gas_price_wei"] = pd.to_numeric(d["gas_price_wei"], errors="coerce").fillna(0).astype("int")
-                d["block_number"] = pd.to_numeric(d["block_number"], errors="coerce").fillna(0).astype("int")
+                d["latency_ms"] = pd.to_numeric(d["latency_ms"], errors="coerce").fillna(0).astype("int64")
+                d["gas_used"] = pd.to_numeric(d["gas_used"], errors="coerce").fillna(0).astype("int64")
+                d["gas_price_wei"] = pd.to_numeric(d["gas_price_wei"], errors="coerce").fillna(0).astype("int64")
+                d["block_number"] = pd.to_numeric(d["block_number"], errors="coerce").fillna(0).astype("int64")
 
                 # Teks
                 for col in ["run_id", "tx_hash", "status", "function_name"]:
