@@ -402,24 +402,20 @@ def sample_templates():
     runs_cols = ["run_id","timestamp","network","scenario","contract","function_name","concurrency","tx_per_user","tps_avg","tps_peak","p50_ms","p95_ms","success_rate"]
     tx_cols   = ["run_id","tx_hash","submitted_at","mined_at","latency_ms","status","gas_used","gas_price_wei","block_number","function_name"]
 
-    from datetime import datetime, timedelta
-
-    base_time = datetime.utcnow()
-
-    if uploaded_file is not None:
-        try:
-            import json
-            df_cost = pd.DataFrame([
-                json.loads(line)
-                for line in uploaded_file.getvalue().decode("utf-8").splitlines()
-            ])
-            st.success("✅ File NDJSON berhasil dimuat.")
-        except Exception as e:
-            st.warning(f"Gagal parsing NDJSON. Menampilkan data dummy. Error: {e}")
-            df_cost = generate_dummy_cost()
-    else:
+ if uploaded_file is not None:
+    try:
+        import json
+        df_cost = pd.DataFrame([
+            json.loads(line)
+            for line in uploaded_file.getvalue().decode("utf-8").splitlines()
+        ])
+        st.success("✅ File NDJSON berhasil dimuat.")
+    except Exception as e:
+         st.warning(f"Gagal parsing NDJSON. Menampilkan data dummy. Error: {e}")
         df_cost = generate_dummy_cost()
-        st.info("🔹 Menampilkan data dummy karena belum ada file di-upload.")
+else:
+    df_cost = generate_dummy_cost()
+    st.info("🔹 Menampilkan data dummy karena belum ada file di-upload.")
 
 from datetime import datetime, timedelta
 
