@@ -413,7 +413,7 @@ def sample_templates():
 
 def csv_bytes(df: pd.DataFrame) -> bytes:
     if df is None or not isinstance(df, pd.DataFrame):
-        return b""  # atau bisa kasih logging di sini kalau mau debug
+        return b""
     buff = io.StringIO()
     df.to_csv(buff, index=False)
     return buff.getvalue().encode("utf-8")
@@ -1442,15 +1442,6 @@ Data performa dihasilkan dari **penggabungan (`JOIN`) berdasarkan kolom `run_id`
                 object_cols = d.select_dtypes(include="object").columns
                 for col in object_cols:
                     d[col] = d[col].fillna("").astype(str)
-
-                # Debug khusus nilai gas_price_wei yang aneh
-                mask_error = d["gas_price_wei"].apply(lambda x: isinstance(x, str) and not x.strip().isdigit())
-                st.write("🛑 Nilai aneh di gas_price_wei (sebelum konversi):")
-                st.write(d.loc[mask_error, "gas_price_wei"].unique())
-
-                # Debug semua nilai yang gagal konversi
-                st.write("🧪 Apakah ada NaN setelah to_numeric:")
-                st.write(pd.to_numeric(d["gas_price_wei"], errors="coerce").isna().sum())
 
                 for col in d.select_dtypes(include="object").columns:
                     d[col] = d[col].astype(str).fillna("").str.replace(r"[\n\r\t]", " ", regex=True)
