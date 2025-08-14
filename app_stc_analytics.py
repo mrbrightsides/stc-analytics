@@ -1354,7 +1354,7 @@ elif page == "Performance (Bench)":
                 )
                 n = upsert("bench_runs", d, ["run_id"], cols)
                 st.success(f"{n} baris masuk ke bench_runs.")
-            render_bench_validation(runs)
+            render_bench_validation(runs, tx, bagian="runs")
 
         # ---- bench_tx ----
         with st.expander("📘 Panduan Upload CSV (Wajib Baca)", expanded=True):
@@ -1412,7 +1412,7 @@ Data performa dihasilkan dari **penggabungan (`JOIN`) berdasarkan kolom `run_id`
                 con.close()
                 st.success(f"{n} baris masuk ke bench_tx.")
 
-            render_bench_validation(tx)
+            render_bench_validation(runs, tx, bagian="tx")
         # ---- Templates ----
         _, _, tpl_runs, tpl_tx = sample_templates()
         dcol1, dcol2 = st.columns(2)
