@@ -1452,6 +1452,10 @@ Data performa dihasilkan dari **penggabungan (`JOIN`) berdasarkan kolom `run_id`
                 st.write("🧪 Apakah ada NaN setelah to_numeric:")
                 st.write(pd.to_numeric(d["gas_price_wei"], errors="coerce").isna().sum())
 
+                for col in d.select_dtypes(include="object").columns:
+                    d[col] = d[col].astype(str).fillna("").str.replace(r"[\n\r\t]", " ", regex=True)
+
+
                 con.register("df_stage", d.loc[:, cols])
                 con.execute("""
                     INSERT INTO stg (
