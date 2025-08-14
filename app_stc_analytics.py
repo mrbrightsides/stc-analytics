@@ -1455,6 +1455,7 @@ Data performa dihasilkan dari **penggabungan (`JOIN`) berdasarkan kolom `run_id`
                 for col in d.select_dtypes(include="object").columns:
                     d[col] = d[col].astype(str).fillna("").str.replace(r"[\n\r\t]", " ", regex=True)
 
+                d = d.loc[:, cols]
 
                 con.register("df_stage", d.loc[:, cols])
                 con.execute("""
