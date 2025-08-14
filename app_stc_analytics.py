@@ -1083,7 +1083,6 @@ elif page == "Security (SWC)":
             mask = df["finding_id"].isna() | (df["finding_id"].astype(str).str.strip() == "")
             df.loc[mask, "finding_id"] = fallback[mask]
 
-        df = pd.read_csv(file)
         df = df.dropna(subset=["timestamp"])  # bersihin row dengan timestamp kosong
         df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce", utc=True)
         invalid_rows = df["timestamp"].isna().sum()
