@@ -421,7 +421,7 @@ def sample_templates():
         df_cost = generate_dummy_cost()
         st.info("🔹 Menampilkan data dummy karena belum ada file di-upload.")
 
-    from datetime import datetime, timedelta
+from datetime import datetime, timedelta
 
 def generate_dummy_cost():
     base_time = datetime.utcnow()
