@@ -1497,7 +1497,7 @@ Data performa dihasilkan dari **penggabungan (`JOIN`) berdasarkan kolom `run_id`
 
                 con.close()
 
-        render_bench_validation(runs, tx)
+        render_bench_validation_db()
             
         # ---- Templates ----
         _, _, tpl_runs, tpl_tx = sample_templates()
