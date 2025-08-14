@@ -1,4 +1,5 @@
-def render_bench_validation_db():
+def render_bench_validation_db(get_conn_fn):
+    con = get_conn_fn()
     import streamlit as st
     import pandas as pd
 
@@ -10,8 +11,6 @@ def render_bench_validation_db():
         "run_id","tx_hash","submitted_at","mined_at","latency_ms","status",
         "gas_used","gas_price_wei","block_number","function_name"
     }
-
-    con = get_conn()
 
     # --- hitung dari TABEL (bukan dari CSV variabel) ---
     rows_runs = con.execute("SELECT COUNT(*) FROM bench_runs").fetchone()[0]
