@@ -411,6 +411,8 @@ def sample_templates():
     }
 
 def csv_bytes(df: pd.DataFrame) -> bytes:
+    if df is None or not isinstance(df, pd.DataFrame):
+        return b""  # atau bisa kasih logging di sini kalau mau debug
     buff = io.StringIO()
     df.to_csv(buff, index=False)
     return buff.getvalue().encode("utf-8")
