@@ -1416,9 +1416,6 @@ Data performa dihasilkan dari **penggabungan (`JOIN`) berdasarkan kolom `run_id`
                     );
                 """)
 
-                st.write("📌 Cek kolom final sebelum register:", d[cols].columns.tolist())
-                st.write("📌 Contoh nilai run_id:", d["run_id"].dropna().unique()[:5])
-
                 # Pastikan semua kolom punya tipe data sesuai DuckDB
                 d["latency_ms"] = pd.to_numeric(d["latency_ms"], errors="coerce").fillna(0).astype("int64")
                 d["gas_used"] = pd.to_numeric(d["gas_used"], errors="coerce").fillna(0).astype("int64")
