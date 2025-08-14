@@ -1410,7 +1410,7 @@ Data performa dihasilkan dari **penggabungan (`JOIN`) berdasarkan kolom `run_id`
                 con.close()
                 st.success(f"{n} baris masuk ke bench_tx.")
 
-        render_bench_validation(runs, tx)
+            render_bench_validation(runs, tx)
         # ---- Templates ----
         _, _, tpl_runs, tpl_tx = sample_templates()
         dcol1, dcol2 = st.columns(2)
