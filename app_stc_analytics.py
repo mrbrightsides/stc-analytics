@@ -1463,9 +1463,6 @@ Data performa dihasilkan dari **penggabungan (`JOIN`) berdasarkan kolom `run_id`
                 con.execute("UPDATE bench_runs SET run_id = REGEXP_REPLACE(run_id, '[\\n\\r\\t]', ' ');")
                 con.execute("UPDATE bench_tx   SET run_id = REGEXP_REPLACE(run_id, '[\\n\\r\\t]', ' ');")
 
-                st.write("🔍 Isi run_id dari bench_tx:")
-                st.dataframe(con.execute("SELECT DISTINCT run_id FROM bench_tx").fetchdf())
-
                 match_cnt = con.execute("""
                     SELECT COUNT(*) AS match_cnt FROM (
                         SELECT DISTINCT r.run_id
