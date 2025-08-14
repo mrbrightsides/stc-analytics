@@ -1083,11 +1083,14 @@ elif page == "Security (SWC)":
             mask = df["finding_id"].isna() | (df["finding_id"].astype(str).str.strip() == "")
             df.loc[mask, "finding_id"] = fallback[mask]
 
-        df["timestamp"] = pd.to_datetime(
-            df["timestamp"], 
-            errors="coerce", 
-            utc=True
-        ).fillna(pd.Timestamp.utcnow()).dt.strftime("%Y-%m-%d %H:%M:%S")
+        df = pd.read_csv(file)
+        df = df.dropna(subset=["timestamp"])  # bersihin row dengan timestamp kosong
+        df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce", utc=True)
+        df["timestamp"] = df["timestamp"].fillna(pd.Timestamp.utcnow())
+        df["timestamp"] = df["timestamp"].dt.strftime("%Y-%m-%d %H:%M:%S")
+
+        st.write("📅 Preview timestamp:")
+        st.write(df["timestamp"].head())
 
         df = df.drop_duplicates(subset=["finding_id"], keep="last").copy()
         return df[cols]
