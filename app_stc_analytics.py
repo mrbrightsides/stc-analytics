@@ -67,8 +67,6 @@ if st.sidebar.button("🔄 Reload templates (clear cache)"):
         except Exception:
             pass
 
-LOGO_URL = "https://i.imgur.com/7j5aq4l.png"
-
 # --- NDJSON reader helper ---
 def read_ndjson(uploaded):
     """Baca NDJSON dari st.file_uploader atau file-like object."""
@@ -110,6 +108,8 @@ def read_csv_any(uploaded):
 # App & DB setup
 # -------------------------------
 st.set_page_config(page_title="STC Analytics (Hybrid)", layout="wide")
+
+LOGO_URL = "https://i.imgur.com/7j5aq4l.png"
 
 # Quick CSS theme (dark + teal accents)
 st.markdown("""
