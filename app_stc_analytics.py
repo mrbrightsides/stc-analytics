@@ -109,6 +109,16 @@ def read_csv_any(uploaded):
 # -------------------------------
 st.set_page_config(page_title="STC Analytics (Hybrid)", layout="wide")
 
+LOGO_URL = "https://i.imgur.com/7j5aq4l.png"
+
+col1, col2 = st.columns([1, 4])
+with col1:
+    st.image(LOGO_URL, width=60)
+with col2:
+    st.markdown("""
+        ## Scan Test Contract your Smart Contract
+    """)
+
 # Quick CSS theme (dark + teal accents)
 st.markdown("""
 <style>
