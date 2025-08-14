@@ -1084,7 +1084,7 @@ elif page == "Security (SWC)":
             df.loc[mask, "finding_id"] = fallback[mask]
 
         df = df.dropna(subset=["timestamp"])  # bersihin row dengan timestamp kosong
-        df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce", utc=True)
+        df["timestamp"] = pd.to_datetime(df["timestamp"].astype(str).str.strip(), errors="coerce")
         invalid_rows = df["timestamp"].isna().sum()
         st.info(f"⏱️ Jumlah timestamp gagal parsing: {invalid_rows}")
         
