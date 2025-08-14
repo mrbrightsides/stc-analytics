@@ -1443,6 +1443,15 @@ Data performa dihasilkan dari **penggabungan (`JOIN`) berdasarkan kolom `run_id`
                 for col in object_cols:
                     d[col] = d[col].fillna("").astype(str)
 
+                # Debug khusus nilai gas_price_wei yang aneh
+                mask_error = d["gas_price_wei"].apply(lambda x: isinstance(x, str) and not x.strip().isdigit())
+                st.write("🛑 Nilai aneh di gas_price_wei (sebelum konversi):")
+                st.write(d.loc[mask_error, "gas_price_wei"].unique())
+
+                # Debug semua nilai yang gagal konversi
+                st.write("🧪 Apakah ada NaN setelah to_numeric:")
+                st.write(pd.to_numeric(d["gas_price_wei"], errors="coerce").isna().sum())
+
                 con.register("df_stage", d.loc[:, cols])
                 con.execute("""
                     INSERT INTO stg (
