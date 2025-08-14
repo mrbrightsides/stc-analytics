@@ -1432,9 +1432,6 @@ Data performa dihasilkan dari **penggabungan (`JOIN`) berdasarkan kolom `run_id`
                 # Timestamp
                 d["submitted_at"] = pd.to_datetime(d["submitted_at"], errors="coerce")
                 d["mined_at"] = pd.to_datetime(d["mined_at"], errors="coerce")
-
-                st.write("📎 Tipe kolom df_stage:")
-                st.write(d[cols].dtypes)
               
                 object_cols = d.select_dtypes(include="object").columns
                 for col in object_cols:
