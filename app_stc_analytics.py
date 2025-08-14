@@ -121,7 +121,7 @@ with col1:
     st.image(LOGO_URL, width=60)
 with col2:
     st.markdown("""
-        ## Scan Test Contract your Smart Contract
+        ## Scan --> Test --> Contract! your Smart Contract
     """)
 
 # Quick CSS theme (dark + teal accents)
