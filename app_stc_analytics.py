@@ -1355,9 +1355,6 @@ elif page == "Performance (Bench)":
                 )
                 d["run_id"] = d["run_id"].astype(str).str.strip()
                 n = upsert("bench_runs", d, ["run_id"], cols)
-                st.write("🔍 Isi run_id dari bench_runs:")
-                con = get_conn()
-                st.dataframe(con.execute("SELECT DISTINCT run_id FROM bench_runs").fetchdf())
 
                 st.success(f"{n} baris masuk ke bench_runs.")
 
