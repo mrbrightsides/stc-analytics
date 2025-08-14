@@ -107,7 +107,11 @@ def read_csv_any(uploaded):
 # -------------------------------
 # App & DB setup
 # -------------------------------
-st.set_page_config(page_title="STC Analytics (Hybrid)", layout="wide")
+st.set_page_config(
+    page_title="STC Insight",
+    page_icon="🧬",
+    layout="wide"
+)
 
 LOGO_URL = "https://i.imgur.com/7j5aq4l.png"
 
