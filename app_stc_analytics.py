@@ -1477,26 +1477,6 @@ Data performa dihasilkan dari **penggabungan (`JOIN`) berdasarkan kolom `run_id`
                 con.close()
 
         render_bench_validation_db(get_conn)
-            
-        # ---- Templates ----
-        _, _, tpl_runs, tpl_tx = sample_templates()
-        dcol1, dcol2 = st.columns(2)
-        with dcol1:
-            st.download_button(
-                "⬇️ Template bench_runs.csv",
-                data=csv_bytes(tpl_runs),
-                file_name="bench_runs_template.csv",
-                mime="text/csv",
-                use_container_width=True
-            )
-        with dcol2:
-            st.download_button(
-                "⬇️ Template bench_tx.csv",
-                data=csv_bytes(tpl_tx),
-                file_name="bench_tx_template.csv",
-                mime="text/csv",
-                use_container_width=True
-            )
 
     # ===== di luar expander =====
     want_load = st.session_state.get("load_existing", False)
