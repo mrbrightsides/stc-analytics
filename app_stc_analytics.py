@@ -395,98 +395,95 @@ def show_help(which: str):
         elif which == "bench":
             st.markdown(HELP_BENCH)
 
-def sample_templates():
-    """Buat sample DF utk user download sebagai template."""
-    cost_cols = ["Network","Tx Hash","From","To","Block","Gas Used","Gas Price (Gwei)","Estimated Fee (ETH)","Estimated Fee (Rp)","Contract","Function","Timestamp","Status"]
-    swc_cols  = ["finding_id","timestamp","network","contract","file","line_start","line_end","swc_id","title","severity","confidence","status","remediation","commit_hash"]
-    runs_cols = ["run_id","timestamp","network","scenario","contract","function_name","concurrency","tx_per_user","tps_avg","tps_peak","p50_ms","p95_ms","success_rate"]
-    tx_cols   = ["run_id","tx_hash","submitted_at","mined_at","latency_ms","status","gas_used","gas_price_wei","block_number","function_name"]
-
+# ================== Imports & COLS ==================
 from datetime import datetime, timedelta
 import json
 import pandas as pd
 
-# Tetapkan urutan kolom standar
-cost_cols = [
-    "Timestamp", "Network", "Tx Hash", "Contract", "Function",
-    "Block", "Gas Used", "Gas Price (Gwei)", "Estimated Fee (ETH)",
-    "Estimated Fee (Rp)", "Status"
+COST_COLS = [
+    "Timestamp","Network","Tx Hash","Contract","Function",
+    "Block","Gas Used","Gas Price (Gwei)","Estimated Fee (ETH)",
+    "Estimated Fee (Rp)","Status"
 ]
+SWC_COLS  = ["finding_id","timestamp","network","contract","file","line_start","line_end",
+             "swc_id","title","severity","confidence","status","remediation","commit_hash"]
+RUNS_COLS = ["run_id","timestamp","network","scenario","contract","function_name",
+             "concurrency","tx_per_user","tps_avg","tps_peak","p50_ms","p95_ms","success_rate"]
+TX_COLS   = ["run_id","tx_hash","submitted_at","mined_at","latency_ms","status",
+             "gas_used","gas_price_wei","block_number","function_name"]
 
-# Fungsi normalisasi kolom NDJSON agar cocok dengan sistem chart
+# ================== Helpers ==================
 def normalize_cost_columns(df: pd.DataFrame) -> pd.DataFrame:
     rename_map = {
-        "timestamp": "Timestamp",
-        "network": "Network",
-        "tx_hash": "Tx Hash",
-        "contract": "Contract",
-        "function_name": "Function",
-        "block_number": "Block",
-        "gas_used": "Gas Used",
-        "gas_price_wei": "Gas Price (Gwei)",
-        "cost_eth": "Estimated Fee (ETH)",
-        "cost_idr": "Estimated Fee (Rp)",
-        "status": "Status",
+        "timestamp":"Timestamp","network":"Network","tx_hash":"Tx Hash",
+        "contract":"Contract","function_name":"Function","block_number":"Block",
+        "gas_used":"Gas Used","gas_price_wei":"Gas Price (Gwei)",
+        "cost_eth":"Estimated Fee (ETH)","cost_idr":"Estimated Fee (Rp)","status":"Status"
     }
-    df = df.rename(columns={k: v for k, v in rename_map.items() if k in df.columns})
-    # Reorder kolom sesuai chart
-    cols = [c for c in cost_cols if c in df.columns]
+    df = df.rename(columns={k:v for k,v in rename_map.items() if k in df.columns})
+    cols = [c for c in COST_COLS if c in df.columns]
     return df[cols]
 
-# Fungsi dummy fallback
-def generate_dummy_cost():
-    base_time = datetime.utcnow()
+def generate_dummy_cost(n: int = 100) -> pd.DataFrame:
+    base = datetime.utcnow()
     return pd.DataFrame([
         {
-            "Timestamp": (base_time - timedelta(minutes=i * 30)).isoformat(),
+            "Timestamp": (base - timedelta(minutes=i*30)).isoformat(),
             "Network": "Sepolia",
             "Tx Hash": f"0xdeadbeef{i:02x}",
             "Contract": "SmartReservation",
             "Function": "bookHotel",
             "Block": 123456 + i,
-            "Gas Used": 21000 + (i * 1000 % 50000),
+            "Gas Used": 21000 + (i*1000 % 50000),
             "Gas Price (Gwei)": 20 + (i % 5),
-            "Estimated Fee (ETH)": 0.0004 + (i * 0.00001),
-            "Estimated Fee (Rp)": 15000 + (i * 100),
-            "Status": "Success"
-        }
-        for i in range(100)
-    ], columns=cost_cols)
+            "Estimated Fee (ETH)": 0.0004 + (i*0.00001),
+            "Estimated Fee (Rp)": 15000 + (i*100),
+            "Status": "Success",
+        } for i in range(n)
+    ], columns=COST_COLS)
 
+def sample_templates():
+    """Contoh DF untuk diunduh user sebagai template/dummy."""
+    df_cost = generate_dummy_cost(1)  # satu baris contoh cukup
     df_swc = pd.DataFrame([{
         "finding_id":"","timestamp":pd.Timestamp.utcnow().isoformat(),"network":"Arbitrum Sepolia",
         "contract":"SmartTourismToken","file":"contracts/SmartTourismToken.sol",
         "line_start":332,"line_end":342,"swc_id":"SWC-108","title":"Potential issue SWC-108 detected",
-        "severity":"Medium","confidence":0.83,"status":"Open","remediation":"Refactor code and add checks","commit_hash":"abc123"
-    }], columns=swc_cols)
+        "severity":"Medium","confidence":0.83,"status":"Open",
+        "remediation":"Refactor code and add checks","commit_hash":"abc123"
+    }], columns=SWC_COLS)
 
     df_runs = pd.DataFrame([{
-        "run_id":"run-001","timestamp":pd.Timestamp.utcnow().isoformat(),"network":"Sepolia","scenario":"LoadTestSmall",
-        "contract":"SmartReservation","function_name":"checkIn","concurrency":50,"tx_per_user":5,
-        "tps_avg":85.2,"tps_peak":110.4,"p50_ms":220,"p95_ms":540,"success_rate":0.97
-    }], columns=runs_cols)
+        "run_id":"run-001","timestamp":pd.Timestamp.utcnow().isoformat(),"network":"Sepolia",
+        "scenario":"LoadTestSmall","contract":"SmartReservation","function_name":"checkIn",
+        "concurrency":50,"tx_per_user":5,"tps_avg":85.2,"tps_peak":110.4,"p50_ms":220,"p95_ms":540,"success_rate":0.97
+    }], columns=RUNS_COLS)
 
     df_tx = pd.DataFrame([{
-        "run_id":"run-001","tx_hash":"0x...","submitted_at":pd.Timestamp.utcnow().isoformat(),"mined_at":pd.Timestamp.utcnow().isoformat(),
-        "latency_ms":450,"status":"success","gas_used":21000,"gas_price_wei":"22000000000","block_number":123456,"function_name":"checkIn"
-    }], columns=tx_cols)
+        "run_id":"run-001","tx_hash":"0x...","submitted_at":pd.Timestamp.utcnow().isoformat(),
+        "mined_at":pd.Timestamp.utcnow().isoformat(),"latency_ms":450,"status":"success",
+        "gas_used":21000,"gas_price_wei":"22000000000","block_number":123456,"function_name":"checkIn"
+    }], columns=TX_COLS)
 
     return df_cost, df_swc, df_runs, df_tx
 
-# ---- Handler Upload ----
+# uploaded_file harus sama dengan variabel dari st.file_uploader(...)
 if uploaded_file is not None:
     try:
         lines = uploaded_file.getvalue().decode("utf-8").splitlines()
-        records = [json.loads(line) for line in lines if line.strip()]
-        df_cost = pd.DataFrame.from_records(records)
+        recs = [json.loads(ln) for ln in lines if ln.strip()]
+        df_cost = pd.DataFrame.from_records(recs)
         df_cost = normalize_cost_columns(df_cost)
         st.success("✅ File NDJSON berhasil dimuat.")
     except Exception as e:
-        df_cost = generate_dummy_cost()
         st.warning(f"Gagal parsing NDJSON. Menampilkan data dummy. Error: {e}")
+        df_cost = generate_dummy_cost()
 else:
     df_cost = generate_dummy_cost()
     st.info("🔹 Menampilkan data dummy karena belum ada file di-upload.")
+
+# Debug kecil (opsional)
+st.caption(f"Source: {'UPLOAD' if uploaded_file else 'DUMMY'} | Rows={len(df_cost)} | Unique ts={df_cost['Timestamp'].nunique()}")
 
 def csv_bytes(df: pd.DataFrame) -> bytes:
     buff = io.StringIO()
