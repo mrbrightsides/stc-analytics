@@ -1086,6 +1086,10 @@ elif page == "Security (SWC)":
         df = pd.read_csv(file)
         df = df.dropna(subset=["timestamp"])  # bersihin row dengan timestamp kosong
         df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce", utc=True)
+        invalid_rows = df["timestamp"].isna().sum()
+        st.info(f"⏱️ Jumlah timestamp gagal parsing: {invalid_rows}")
+        
+        df["finding_id"] = df["finding_id"].fillna("UNKNOWN")
         df["timestamp"] = df["timestamp"].fillna(pd.Timestamp.utcnow())
         df["timestamp"] = df["timestamp"].dt.strftime("%Y-%m-%d %H:%M:%S")
 
