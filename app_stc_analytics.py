@@ -1413,7 +1413,7 @@ Data performa dihasilkan dari **penggabungan (`JOIN`) berdasarkan kolom `run_id`
                         latency_ms INTEGER,
                         status TEXT,
                         gas_used INTEGER,
-                        gas_price_wei INTEGER,
+                        gas_price_wei BIGINT,
                         block_number INTEGER,
                         function_name TEXT
                     );
