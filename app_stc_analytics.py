@@ -1354,7 +1354,6 @@ elif page == "Performance (Bench)":
                 )
                 n = upsert("bench_runs", d, ["run_id"], cols)
                 st.success(f"{n} baris masuk ke bench_runs.")
-            render_bench_validation(runs, tx, bagian="runs")
 
         # ---- bench_tx ----
         with st.expander("📘 Panduan Upload CSV (Wajib Baca)", expanded=True):
@@ -1411,12 +1410,12 @@ Data performa dihasilkan dari **penggabungan (`JOIN`) berdasarkan kolom `run_id`
                 n = con.execute("SELECT COUNT(*) FROM stg").fetchone()[0]
                 con.close()
                 st.success(f"{n} baris masuk ke bench_tx.")
-
-            render_bench_validation(runs, tx, bagian="tx")
+            
         # ---- Templates ----
         _, _, tpl_runs, tpl_tx = sample_templates()
         dcol1, dcol2 = st.columns(2)
         with dcol1:
+            render_bench_validation(runs, tx, bagian="runs")
             st.download_button(
                 "⬇️ Template bench_runs.csv",
                 data=csv_bytes(tpl_runs),
@@ -1425,6 +1424,7 @@ Data performa dihasilkan dari **penggabungan (`JOIN`) berdasarkan kolom `run_id`
                 use_container_width=True
             )
         with dcol2:
+            render_bench_validation(runs, tx, bagian="tx")
             st.download_button(
                 "⬇️ Template bench_tx.csv",
                 data=csv_bytes(tpl_tx),
