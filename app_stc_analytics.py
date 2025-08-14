@@ -1341,6 +1341,7 @@ elif page == "Performance (Bench)":
             runs = st.file_uploader("bench_runs.csv", type=None, key="runs_csv")
             if runs is not None:
                 d = read_csv_any(runs)
+                d["run_id"] = d["run_id"].astype(str).str.strip()
                 cols = [
                     "run_id","timestamp","network","scenario","contract","function_name",
                     "concurrency","tx_per_user","tps_avg","tps_peak","p50_ms","p95_ms","success_rate"
@@ -1386,6 +1387,7 @@ Data performa dihasilkan dari **penggabungan (`JOIN`) berdasarkan kolom `run_id`
             tx = st.file_uploader("bench_tx.csv", type=None, key="tx_csv")
             if tx is not None:
                 d = read_csv_any(tx)
+                d["run_id"] = d["run_id"].astype(str).str.strip()
                 cols = [
                     "run_id","tx_hash","submitted_at","mined_at","latency_ms","status",
                     "gas_used","gas_price_wei","block_number","function_name"
