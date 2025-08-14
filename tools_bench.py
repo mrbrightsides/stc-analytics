@@ -41,19 +41,4 @@ def render_bench_validation_db(get_conn_fn):
     if missing_tx:
         st.error(f"Kolom wajib hilang di bench_tx.csv: {missing_tx}")
 
-    # --- debug (opsional) ---
-    with st.expander("🔎 Debug run_id (DB view)", expanded=False):
-        colA, colB, colC = st.columns(3)
-        colA.dataframe(con.execute(
-            "SELECT DISTINCT run_id FROM bench_runs ORDER BY run_id LIMIT 25"
-        ).fetchdf(), use_container_width=True)
-        colB.dataframe(con.execute(
-            "SELECT DISTINCT run_id FROM bench_tx ORDER BY run_id LIMIT 25"
-        ).fetchdf(), use_container_width=True)
-        colC.dataframe(con.execute("""
-            SELECT DISTINCT r.run_id
-            FROM bench_runs r JOIN bench_tx t ON r.run_id=t.run_id
-            ORDER BY r.run_id LIMIT 25
-        """).fetchdf(), use_container_width=True)
-
     con.close()
