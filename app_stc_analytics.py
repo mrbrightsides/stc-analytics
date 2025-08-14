@@ -1415,7 +1415,7 @@ Data performa dihasilkan dari **penggabungan (`JOIN`) berdasarkan kolom `run_id`
         _, _, tpl_runs, tpl_tx = sample_templates()
         dcol1, dcol2 = st.columns(2)
         with dcol1:
-            render_bench_validation(runs)
+            render_bench_validation("runs")
             st.download_button(
                 "⬇️ Template bench_runs.csv",
                 data=csv_bytes(tpl_runs),
@@ -1424,7 +1424,7 @@ Data performa dihasilkan dari **penggabungan (`JOIN`) berdasarkan kolom `run_id`
                 use_container_width=True
             )
         with dcol2:
-            render_bench_validation(tx)
+            render_bench_validation("tx")
             st.download_button(
                 "⬇️ Template bench_tx.csv",
                 data=csv_bytes(tpl_tx),
