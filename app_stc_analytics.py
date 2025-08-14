@@ -1355,6 +1355,10 @@ elif page == "Performance (Bench)":
                 )
                 d["run_id"] = d["run_id"].astype(str).str.strip()
                 n = upsert("bench_runs", d, ["run_id"], cols)
+                st.write("🔍 Isi run_id dari bench_runs:")
+                con = get_conn()
+                st.dataframe(con.execute("SELECT DISTINCT run_id FROM bench_runs").fetchdf())
+
                 st.success(f"{n} baris masuk ke bench_runs.")
 
         # ---- bench_tx ----
@@ -1404,6 +1408,9 @@ Data performa dihasilkan dari **penggabungan (`JOIN`) berdasarkan kolom `run_id`
                 d["run_id"] = d["run_id"].astype(str).str.strip()
                 con.register("df_stage", d[cols])
                 con.execute("INSERT INTO stg SELECT * FROM df_stage;")
+                st.write("🔍 Isi run_id dari bench_tx:")
+                st.dataframe(con.execute("SELECT DISTINCT run_id FROM bench_tx").fetchdf())
+
                 con.execute("""
                     DELETE FROM bench_tx USING (
                         SELECT DISTINCT run_id, tx_hash FROM stg
