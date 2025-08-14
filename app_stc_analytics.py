@@ -7,8 +7,6 @@ import json, re, hashlib
 from datetime import datetime
 from pathlib import Path
 
-LOGO_URL = "https://i.imgur.com/7j5aq4l.png"
-
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 
 def _file_hash(p: Path) -> str:
@@ -68,6 +66,8 @@ if st.sidebar.button("🔄 Reload templates (clear cache)"):
             st.experimental_rerun()
         except Exception:
             pass
+
+LOGO_URL = "https://i.imgur.com/7j5aq4l.png"
 
 # --- NDJSON reader helper ---
 def read_ndjson(uploaded):
