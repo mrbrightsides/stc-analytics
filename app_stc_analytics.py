@@ -406,7 +406,26 @@ def sample_templates():
 
     base_time = datetime.utcnow()
 
-    df_cost = pd.DataFrame([
+    if uploaded_file is not None:
+        try:
+            import json
+            df_cost = pd.DataFrame([
+                json.loads(line)
+                for line in uploaded_file.getvalue().decode("utf-8").splitlines()
+            ])
+            st.success("✅ File NDJSON berhasil dimuat.")
+        except Exception as e:
+            st.warning(f"Gagal parsing NDJSON. Menampilkan data dummy. Error: {e}")
+            df_cost = generate_dummy_cost()
+    else:
+        df_cost = generate_dummy_cost()
+        st.info("🔹 Menampilkan data dummy karena belum ada file di-upload.")
+
+    from datetime import datetime, timedelta
+
+def generate_dummy_cost():
+    base_time = datetime.utcnow()
+    return pd.DataFrame([
         {
             "Network": "Sepolia",
             "Tx Hash": f"0xdeadbeef{i:02x}",
