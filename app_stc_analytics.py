@@ -1353,6 +1353,7 @@ elif page == "Performance (Bench)":
                     pd.to_datetime(d["timestamp"], errors="coerce", utc=True)
                       .dt.tz_localize(None)
                 )
+                d["run_id"] = d["run_id"].astype(str).str.strip()
                 n = upsert("bench_runs", d, ["run_id"], cols)
                 st.success(f"{n} baris masuk ke bench_runs.")
 
@@ -1400,6 +1401,7 @@ Data performa dihasilkan dari **penggabungan (`JOIN`) berdasarkan kolom `run_id`
 
                 con = get_conn()
                 con.execute("CREATE TEMP TABLE stg AS SELECT * FROM bench_tx WITH NO DATA;")
+                d["run_id"] = d["run_id"].astype(str).str.strip()
                 con.register("df_stage", d[cols])
                 con.execute("INSERT INTO stg SELECT * FROM df_stage;")
                 con.execute("""
