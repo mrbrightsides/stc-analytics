@@ -1087,10 +1087,18 @@ elif page == "Security (SWC)":
         for i, ts in enumerate(df["timestamp"].astype(str).str.strip().unique()[:20]):
             st.write(f"{i+1:02d}: '{ts}'")
 
-        df["timestamp"] = pd.to_datetime(df["timestamp"].astype(str).str.strip(), errors="coerce")
+        from dateutil import parser
+
+        def parse_timestamp_safe(ts):
+            try:
+                return parser.isoparse(str(ts).strip())
+            except Exception:
+                return pd.NaT
+
+        df["timestamp"] = df["timestamp"].apply(parse_timestamp_safe)
         invalid_rows = df["timestamp"].isna().sum()
-        st.info(f"⏱️ Jumlah timestamp gagal parsing: {invalid_rows}")
-        
+        st.info(f"🔴 Jumlah timestamp gagal parsing: {invalid_rows}")
+
         df["finding_id"] = df["finding_id"].fillna("UNKNOWN")
         df["timestamp"] = df["timestamp"].fillna(pd.Timestamp.utcnow())
         df["timestamp"] = df["timestamp"].dt.strftime("%Y-%m-%d %H:%M:%S")
