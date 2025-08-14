@@ -1382,6 +1382,7 @@ Data performa dihasilkan dari **penggabungan (`JOIN`) berdasarkan kolom `run_id`
             """)
 
         with col2:
+            render_bench_validation(runs, tx)
             tx = st.file_uploader("bench_tx.csv", type=None, key="tx_csv")
             if tx is not None:
                 d = read_csv_any(tx)
@@ -1409,8 +1410,6 @@ Data performa dihasilkan dari **penggabungan (`JOIN`) berdasarkan kolom `run_id`
                 n = con.execute("SELECT COUNT(*) FROM stg").fetchone()[0]
                 con.close()
                 st.success(f"{n} baris masuk ke bench_tx.")
-
-            render_bench_validation(runs, tx)
 
         # ---- Templates ----
         _, _, tpl_runs, tpl_tx = sample_templates()
