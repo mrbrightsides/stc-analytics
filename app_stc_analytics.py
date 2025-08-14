@@ -395,6 +395,21 @@ def show_help(which: str):
         elif which == "bench":
             st.markdown(HELP_BENCH)
 
+def sample_templates():
+    """Buat sample DF utk user download sebagai template."""
+    cost_cols = [...]
+    swc_cols = [...]
+    runs_cols = [...]
+    tx_cols = [...]
+
+    # return template-only headers, tidak perlu isi
+    return {
+        "cost": pd.DataFrame(columns=cost_cols),
+        "swc": pd.DataFrame(columns=swc_cols),
+        "runs": pd.DataFrame(columns=runs_cols),
+        "tx": pd.DataFrame(columns=tx_cols),
+    }
+
 def csv_bytes(df: pd.DataFrame) -> bytes:
     buff = io.StringIO()
     df.to_csv(buff, index=False)
