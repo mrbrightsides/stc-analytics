@@ -1423,7 +1423,17 @@ Data performa dihasilkan dari **penggabungan (`JOIN`) berdasarkan kolom `run_id`
                 st.write("📌 Contoh nilai run_id:", d["run_id"].dropna().unique()[:5])
 
                 con.register("df_stage", d.loc[:, cols])
-                con.execute("INSERT INTO stg SELECT * FROM df_stage;")
+                con.execute("""
+                    INSERT INTO stg (
+                        run_id, tx_hash, submitted_at, mined_at, latency_ms,
+                        status, gas_used, gas_price_wei, block_number, function_name
+                    )
+                    SELECT
+                        run_id, tx_hash, submitted_at, mined_at, latency_ms,
+                        status, gas_used, gas_price_wei, block_number, function_name
+                    FROM df_stage;
+                """)
+
                 st.write("🔍 Isi run_id dari bench_tx:")
                 st.dataframe(con.execute("SELECT DISTINCT run_id FROM bench_tx").fetchdf())
 
