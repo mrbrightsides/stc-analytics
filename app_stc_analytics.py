@@ -402,11 +402,28 @@ def sample_templates():
     runs_cols = ["run_id","timestamp","network","scenario","contract","function_name","concurrency","tx_per_user","tps_avg","tps_peak","p50_ms","p95_ms","success_rate"]
     tx_cols   = ["run_id","tx_hash","submitted_at","mined_at","latency_ms","status","gas_used","gas_price_wei","block_number","function_name"]
 
-    df_cost = pd.DataFrame([{
-        "Network":"Sepolia","Tx Hash":"0x...","From":"0x...","To":"0x...","Block":123456,
-        "Gas Used":21000,"Gas Price (Gwei)":22.5,"Estimated Fee (ETH)":0.00047,"Estimated Fee (Rp)":15000,
-        "Contract":"SmartReservation","Function":"bookHotel","Timestamp":pd.Timestamp.utcnow().isoformat(),"Status":"Success"
-    }], columns=cost_cols)
+    from datetime import datetime, timedelta
+
+    base_time = datetime.utcnow()
+
+    df_cost = pd.DataFrame([
+        {
+            "Network": "Sepolia",
+            "Tx Hash": f"0xdeadbeef{i:02x}",
+            "From": "0xfrom",
+            "To": "0xto",
+            "Block": 123456 + i,
+            "Gas Used": 21000 + (i * 1000 % 50000),
+            "Gas Price (Gwei)": 20 + (i % 5),
+            "Estimated Fee (ETH)": 0.0004 + (i * 0.00001),
+            "Estimated Fee (Rp)": 15000 + (i * 100),
+            "Contract": "SmartReservation",
+            "Function": "bookHotel",
+            "Timestamp": (base_time - timedelta(minutes=i * 30)).isoformat(),
+            "Status": "Success"
+        }
+        for i in range(100)
+    ], columns=cost_cols)
 
     df_swc = pd.DataFrame([{
         "finding_id":"","timestamp":pd.Timestamp.utcnow().isoformat(),"network":"Arbitrum Sepolia",
