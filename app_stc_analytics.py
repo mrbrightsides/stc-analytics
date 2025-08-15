@@ -1327,6 +1327,36 @@ elif page == "Security (SWC)":
                 else:
                     st.info("SWC ini belum ada di KB JSON.")
 
+                    with st.expander("➕ Tambahkan penjelasan untuk SWC ini"):
+                        new_title = st.text_input("Judul SWC", key="title_input")
+                        new_desc = st.text_area("Deskripsi SWC", key="desc_input", height=200)
+                        new_mitigation = st.text_area("Mitigasi (opsional)", key="mitigation_input", height=100)
+
+                        if st.button("💾 Buat Draft JSON untuk Pull Request"):
+                            if new_title and new_desc:
+                                draft_kb = {
+                                    sel: {
+                                        "title": new_title.strip(),
+                                        "description": new_desc.strip(),
+                                        "mitigation": new_mitigation.strip()
+                                    }
+                                }
+                                draft_json = json.dumps(draft_kb, indent=2)
+
+                                st.download_button(
+                                    label="⬇️ Download Draft KB (JSON)",
+                                    data=draft_json,
+                                    file_name=f"{sel}_kb_contribution.json",
+                                    mime="application/json",
+                                    use_container_width=True
+                                )
+
+                                st.success("✅ Draft berhasil dibuat.")
+                                st.info("Silakan ajukan file ini sebagai Pull Request ke repositori kami.")
+                                st.markdown("[📌 Buat PR di GitHub](https://github.com/mrbrightsides/stc-analytics/pulls)", unsafe_allow_html=True)
+                            else:
+                                st.error("Judul dan deskripsi wajib diisi.")
+
 # -------------------------------
 # PERFORMANCE (Bench)
 # -------------------------------
