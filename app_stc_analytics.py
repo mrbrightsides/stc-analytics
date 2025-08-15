@@ -326,7 +326,7 @@ Data disimpan **lokal** di DuckDB (`stc_analytics.duckdb`) pada mesin Anda; tida
 Dashboard menampilkan data sumber; akurasi bergantung input. SWC **bukan** audit engine, gunakan sebagai panduan.
 
 **6) SWC Knowledge**  
-Dibaca dari `swc_kb.json` (bisa diatur via `SWC_KB_PATH`). Mendukung format **list** atau **dict** berindeks SWC-ID. Anda bisa menambah/ubah konten.
+Dibaca dari `swc_kb.json` (bisa diatur via `SWC_KB_PATH`). Mendukung format **list** atau **dict** berindeks SWC-ID.
 
 **7) Duplikasi temuan SWC**  
 PK `finding_id`. Jika kosong, app membuat **contract::swc_id::line_start** dan de-dup per batch.
@@ -351,6 +351,16 @@ TPS Peak/Avg, p50_ms/p95_ms (latensi), Success Rate.
 
 **14) Troubleshooting**  
 Kolom hilang/PK conflict/parsing tanggal/angka & encoding/berkas besar—lihat bantuan di setiap tab atau gunakan template resmi.
+
+**15) Sumber Referensi SWC Knowledge** 
+Konten SWC Knowledge dirujuk dan disesuaikan dari:
+
+- [SWC Registry](https://swcregistry.io)  
+- [MythX SWC Database](https://docs.mythx.io/knowledge-base/swc-registry)  
+- [Trail of Bits - Smart Contract Weaknesses](https://github.com/crytic/swc-registry)  
+- Hasil audit dan ringkasan pribadi tim STC.
+
+> ✏️ Anda juga dapat mengontribusikan deskripsi baru via fitur **Tambah SWC KB** dan mengajukan sebagai Pull Request.
 """
 
 with st.expander("❓ FAQ", expanded=False):
