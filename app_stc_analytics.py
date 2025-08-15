@@ -1481,10 +1481,9 @@ Data performa dihasilkan dari **penggabungan (`JOIN`) berdasarkan kolom `run_id`
         # ---- Templates ----
         button_html = lambda label, url: f"""
         <a href="{url}" target="_blank">
-            st.markdown(
-                <button style="width:100%;padding:0.5em 1em;font-size:1em;">{label}</button>
-            </a>
-            """
+            <button style="width:100%;padding:0.5em 1em;font-size:1em;">{label}</button>
+        </a>
+        """
         dcol1, dcol2 = st.columns(2)
         with dcol1:
             st.markdown(button_html("⬇️ Template bench_runs.csv", "https://drive.google.com/uc?export=download&id=1rjgDdtAUqSbojeyKOZ-7JY8nbKWlNglM"), unsafe_allow_html=True)
