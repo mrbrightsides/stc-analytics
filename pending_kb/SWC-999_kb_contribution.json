@@ -1,0 +1,7 @@
+{
+  "SWC-999": {
+    "title": "Example Title for SWC-999",
+    "description": "This is an example description for a new SWC entry.",
+    "mitigation": "Use safe math operations to avoid this vulnerability."
+  }
+}
