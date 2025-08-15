@@ -249,7 +249,7 @@ def get_conn():
 # -------------------------------
 GITHUB_URL = "https://github.com/mrbrightsides"
 
-with st.sidebar.expander("📘 About / Cara pakai", expanded=True):
+with st.sidebar.expander("📘 About / Cara pakai", expanded=false):
     st.markdown(
         """
 ### STC Analytics — Hybrid Dashboard
@@ -1477,6 +1477,15 @@ Data performa dihasilkan dari **penggabungan (`JOIN`) berdasarkan kolom `run_id`
                 con.close()
 
         render_bench_validation_db(get_conn)
+
+    st.markdown(
+        """
+        [📥 Download Template bench_runs.csv](https://drive.google.com/uc?export=download&id=1v2YHg8pB4NadcbA5Ez1WRgCU1HikDjyd)
+        &nbsp;&nbsp;&nbsp;
+        [📥 Download Template bench_tx.csv](https://drive.google.com/uc?export=download&id=1v3aExampleIDAnotherFile123)
+        """,
+        unsafe_allow_html=True
+    )
 
     # ===== di luar expander =====
     want_load = st.session_state.get("load_existing", False)
