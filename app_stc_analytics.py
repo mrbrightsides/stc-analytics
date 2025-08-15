@@ -358,7 +358,7 @@ Konten SWC Knowledge dirujuk dan disesuaikan dari:
 - [SWC Registry](https://swcregistry.io)  
 - [MythX SWC Database](https://docs.mythx.io/knowledge-base/swc-registry)  
 - [Trail of Bits - Smart Contract Weaknesses](https://github.com/crytic/swc-registry)  
-- Hasil audit dan ringkasan pribadi tim STC.
+- Hasil audit dan ringkasan pribadi tim STC
 
 > ✏️ Anda juga dapat mengontribusikan deskripsi baru via fitur **Tambah SWC KB** dan mengajukan sebagai Pull Request.
 """
