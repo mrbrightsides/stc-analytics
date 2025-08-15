@@ -1359,7 +1359,7 @@ elif page == "Performance (Bench)":
                 st.success(f"{n} baris masuk ke bench_runs.")
 
         # ---- bench_tx ----
-        with st.expander("📘 Panduan Upload CSV (Wajib Baca)", expanded=True):
+        with st.expander("📘 Panduan Upload CSV (Wajib Baca)", expanded=False):
             st.markdown("""
             ### ℹ️ Penting! Unggah Dua File CSV secara Bersamaan
 
