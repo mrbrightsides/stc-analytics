@@ -1478,7 +1478,8 @@ Data performa dihasilkan dari **penggabungan (`JOIN`) berdasarkan kolom `run_id`
 
         render_bench_validation_db(get_conn)
 
-   with st.expander("📁 Download Templates", expanded=False):
+    # ===== di luar expander =====
+    with st.expander("📁 Download Templates", expanded=False):
     st.markdown(
         """
         ✅ [Download Template bench_runs.csv](https://drive.google.com/uc?export=download&id=YOUR_FILE_ID_1)  
@@ -1486,8 +1487,7 @@ Data performa dihasilkan dari **penggabungan (`JOIN`) berdasarkan kolom `run_id`
         """,
         unsafe_allow_html=True
     )
-
-    # ===== di luar expander =====
+    
     want_load = st.session_state.get("load_existing", False)
     no_new_upload = (
         (st.session_state.get("runs_csv") is None) and
