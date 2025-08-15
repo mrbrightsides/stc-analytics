@@ -1478,11 +1478,11 @@ Data performa dihasilkan dari **penggabungan (`JOIN`) berdasarkan kolom `run_id`
 
         render_bench_validation_db(get_conn)
 
+   with st.expander("📁 Download Templates", expanded=False):
     st.markdown(
         """
-        [📥 Download Template bench_runs.csv](https://drive.google.com/uc?export=download&id=1v2YHg8pB4NadcbA5Ez1WRgCU1HikDjyd)
-        &nbsp;&nbsp;&nbsp;
-        [📥 Download Template bench_tx.csv](https://drive.google.com/uc?export=download&id=1v3aExampleIDAnotherFile123)
+        ✅ [Download Template bench_runs.csv](https://drive.google.com/uc?export=download&id=YOUR_FILE_ID_1)  
+        ✅ [Download Template bench_tx.csv](https://drive.google.com/uc?export=download&id=YOUR_FILE_ID_2)
         """,
         unsafe_allow_html=True
     )
