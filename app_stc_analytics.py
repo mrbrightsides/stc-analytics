@@ -249,7 +249,7 @@ def get_conn():
 # -------------------------------
 GITHUB_URL = "https://github.com/mrbrightsides"
 
-with st.sidebar.expander("📘 About / Cara pakai", expanded=false):
+with st.sidebar.expander("📘 About / Cara pakai", expanded=true):
     st.markdown(
         """
 ### STC Analytics — Hybrid Dashboard
