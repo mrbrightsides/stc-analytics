@@ -1313,21 +1313,36 @@ elif page == "Security (SWC)":
             "severity","confidence","status","remediation"
         ]
 
-        dfv = df.copy()
+        # --- Detail Temuan (rapi + 1 tabel saja) ---
+        detail_cols = ["timestamp","network","contract","file","line_start",
+                       "swc_id","title","severity","confidence","status","remediation"]
 
+        base = swc_plot                      # <- ini data hasil query DuckDB
+        dfv  = base.copy()
+
+        # sembunyikan None di kolom teks
         text_cols = ["network","contract","file","swc_id","title","severity","status","remediation"]
         dfv[text_cols] = dfv[text_cols].fillna("")
 
-        dfv["line_start"] = dfv["line_start"].astype("Int64")  # biar tampil kosong saat NaN
-        dfv["confidence"] = (dfv["confidence"]*100).round(1).astype("Float64")
+        # rapikan angka
+        dfv["line_start"]  = pd.to_numeric(dfv["line_start"], errors="coerce").astype("Int64")
+        dfv["confidence"]  = pd.to_numeric(dfv["confidence"], errors="coerce").round(2)
 
+        # (opsional) urutkan severity & waktu
         sev_order = pd.CategoricalDtype(["critical","high","medium","low"], ordered=True)
         dfv["severity"] = dfv["severity"].str.lower().astype(sev_order)
         dfv = dfv.sort_values(["severity","timestamp"], ascending=[True, False])
 
-        st.dataframe(dfv, use_container_width=True)
+        # tampilkan sekali saja + tombol download
+        st.dataframe(dfv[detail_cols], use_container_width=True)
+        st.download_button(
+            "⬇️ Download tabel di atas (CSV)",
+            dfv[detail_cols].to_csv(index=False).encode("utf-8"),
+            file_name="swc_table_filtered.csv",
+            mime="text/csv",
+            use_container_width=True,
+        )
 
-        st.dataframe(swc_plot[detail_cols], use_container_width=True)
         st.download_button(
             "⬇️ Download tabel di atas (CSV)",
             data=csv_bytes(swc_plot[detail_cols]),
