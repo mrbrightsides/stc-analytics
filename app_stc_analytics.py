@@ -1078,11 +1078,12 @@ elif page == "Security (SWC)":
 
     # --- mapping CSV/NDJSON -> schema + id fallback + dedup ---
     def map_swc(df: pd.DataFrame) -> pd.DataFrame:
-        cols = [
+        COLS_SWC = [
             "finding_id","timestamp","network","contract","file",
             "line_start","line_end","swc_id","title","severity",
-            "confidence","status","remediation","commit_hash"
+            "confidence","status","remediation","commit_hash",
         ]
+
         for c in cols:
             if c not in df.columns:
                 df[c] = None
@@ -1134,7 +1135,7 @@ elif page == "Security (SWC)":
         st.write(df["timestamp"].head())
 
         df = df.drop_duplicates(subset=["finding_id"], keep="last").copy()
-        return df[cols]
+        return df[COLS_SWC]
 
     # --- Ingest (AUTO seperti Bench/Vision) ---
     with st.expander("Ingest CSV/NDJSON SWC Findings", expanded=False):
@@ -1189,7 +1190,7 @@ elif page == "Security (SWC)":
         if swc_csv is not None:
             d = read_csv_any(swc_csv)
             d = map_swc(d)
-            ing += upsert("swc_findings", d, ["finding_id"], d.columns.tolist())
+            ing += upsert("swc_findings", d, ["finding_id"], COLS_SWC)
 
         if swc_nd is not None:
             rows = []
