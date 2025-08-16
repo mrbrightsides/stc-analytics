@@ -1367,12 +1367,22 @@ elif page == "Security (SWC)":
         dfv = dfv.sort_values(["severity","timestamp"], ascending=[True, False])
         
         # tampilkan & unduh
-        dfv_display = dfv[detail_cols].copy()
+        dfv_display = dfv[COLS_SWC].copy()
         dfv_display["timestamp"] = (
             pd.to_datetime(dfv_display["timestamp"], errors="coerce").dt.strftime("%Y-%m-%d %H:%M:%S")
         )
         mask_zero = (dfv_display["line_start"] == 0) & (dfv_display["line_end"] == 0)
         dfv_display.loc[mask_zero, ["line_start","line_end"]] = pd.NA
+
+        dfv_display["confidence"] = (
+            pd.to_numeric(dfv_display["confidence"], errors="coerce")
+              .round(2)
+              .map(lambda x: "" if pd.isna(x) else f"{x:g}")
+        )
+
+        dfv_display["commit_hash"] = dfv_display["commit_hash"].astype("string").fillna("").str[:7]
+
+        dfv_display = dfv_display.fillna("")
         
         st.dataframe(dfv_display, use_container_width=True)
 
