@@ -1317,52 +1317,50 @@ elif page == "Security (SWC)":
         base = swc_plot  # hasil query DuckDB
         dfv = base.copy()
 
-        # pastikan semua kolom yang mau ditampilkan ada
+        # pastikan semua kolom ada
         for c in detail_cols:
             if c not in dfv.columns:
                 dfv[c] = pd.NA
         
-        # kolom teks (TERMASUK confidence) -> string + isi kosong jadi ""
+        # kolom teks (TANPA confidence)
         text_cols = [
             "finding_id","network","contract","file","swc_id",
-            "title","severity","status","remediation","commit_hash","confidence"
+            "title","severity","status","remediation","commit_hash"
         ]
         dfv[text_cols] = dfv[text_cols].astype("string").fillna("")
         
-        # line number -> numeric sekali saja, fallback 0, pakai Int64 biar bisa NA
+        # line number -> Int64 dengan fallback 0
         for c in ["line_start","line_end"]:
             dfv[c] = pd.to_numeric(dfv[c], errors="coerce").fillna(0).astype("Int64")
         
-        # normalisasi severity (support 'informational')
+        # normalize severity termasuk 'informational'
         dfv["severity"] = (
-            dfv["severity"]
-              .str.lower()
-              .replace({"info": "informational", "informative": "informational"})
+            dfv["severity"].str.lower()
+                           .replace({"info": "informational", "informative": "informational"})
         )
-        sev_order = pd.CategoricalDtype(
-            ["critical","high","medium","low","informational"], ordered=True
-        )
+        sev_order = pd.CategoricalDtype(["critical","high","medium","low","informational"], ordered=True)
         dfv["severity"] = dfv["severity"].astype(sev_order)
         
-        # urutkan: severity naik, timestamp terbaru dulu
+        # --- confidence: angka dulu, kalau gagal map dari kata ---
+        if "confidence" in dfv.columns:
+            conf_str = dfv["confidence"].astype("string")
+            conf_num = pd.to_numeric(conf_str, errors="coerce")                # 0.5, 0.75, dst
+            conf_map = conf_str.str.lower().map({"low": 0.25, "medium": 0.50, "high": 0.75})
+            dfv["confidence"] = conf_num.combine_first(conf_map).round(2)      # hasil akhir numeric
+        
+        # urutkan
         dfv = dfv.sort_values(["severity","timestamp"], ascending=[True, False])
         
-        # --- tampilkan & unduh ---
+        # tampilkan & unduh
         dfv_display = dfv[detail_cols].copy()
-        
-        # format timestamp rapi
         dfv_display["timestamp"] = (
-            pd.to_datetime(dfv_display["timestamp"], errors="coerce")
-              .dt.strftime("%Y-%m-%d %H:%M:%S")
+            pd.to_datetime(dfv_display["timestamp"], errors="coerce").dt.strftime("%Y-%m-%d %H:%M:%S")
         )
-        
-        # sembunyikan 0/0 untuk line number -> tampil NA
         mask_zero = (dfv_display["line_start"] == 0) & (dfv_display["line_end"] == 0)
         dfv_display.loc[mask_zero, ["line_start","line_end"]] = pd.NA
         
         st.dataframe(dfv_display, use_container_width=True)
 
-        
         st.download_button(
             "⬇️ Download tabel di atas (CSV)",
             data=dfv.to_csv(index=False, na_rep="").encode("utf-8"),  # raw numerik, kosong jadi ''
