@@ -1309,46 +1309,39 @@ elif page == "Security (SWC)":
         # ====== table ======
         st.markdown("### Detail Temuan")
         detail_cols = [
-            "timestamp","network","contract","file","line_start","swc_id","title",
-            "severity","confidence","status","remediation"
+            "finding_id","timestamp","network","contract","file",
+            "line_start","line_end","swc_id","title","severity",
+            "confidence","status","remediation","commit_hash"
         ]
 
-        # --- Detail Temuan (rapi + 1 tabel saja) ---
-        detail_cols = ["timestamp","network","contract","file","line_start",
-                       "swc_id","title","severity","confidence","status","remediation"]
+        base = swc_plot  # hasil query DuckDB
+        dfv = base.copy()
 
-        base = swc_plot                      # <- ini data hasil query DuckDB
-        dfv  = base.copy()
-
-        # sembunyikan None di kolom teks
-        text_cols = ["network","contract","file","swc_id","title","severity","status","remediation"]
+        # isi kosong untuk kolom teks
+        text_cols = ["finding_id","network","contract","file","swc_id",
+                     "title","severity","status","remediation","commit_hash"]
         dfv[text_cols] = dfv[text_cols].fillna("")
 
-        # rapikan angka
-        dfv["line_start"]  = pd.to_numeric(dfv["line_start"], errors="coerce").astype("Int64")
-        dfv["confidence"]  = pd.to_numeric(dfv["confidence"], errors="coerce").round(2)
-
-        # (opsional) urutkan severity & waktu
+        # ketikkan angka
+        dfv["line_start"] = pd.to_numeric(dfv["line_start"], errors="coerce").astype("Int64")
+        dfv["line_end"]   = pd.to_numeric(dfv["line_end"],   errors="coerce").astype("Int64")
+        dfv["confidence"] = pd.to_numeric(dfv["confidence"], errors="coerce").round(2)
+        
+        # urutkan (opsional)
         sev_order = pd.CategoricalDtype(["critical","high","medium","low"], ordered=True)
         dfv["severity"] = dfv["severity"].str.lower().astype(sev_order)
         dfv = dfv.sort_values(["severity","timestamp"], ascending=[True, False])
-
-        # tampilkan sekali saja + tombol download
-        st.dataframe(dfv[detail_cols], use_container_width=True)
-        st.download_button(
-            "⬇️ Download tabel di atas (CSV)",
-            dfv[detail_cols].to_csv(index=False).encode("utf-8"),
-            file_name="swc_table_filtered.csv",
-            mime="text/csv",
-            use_container_width=True,
-        )
-
+        
+        # tampilkan & unduh
+        dfv_display = dfv[detail_cols].copy()
+        st.dataframe(dfv_display, use_container_width=True)
         st.download_button(
             "⬇️ Download tabel di atas (CSV)",
             data=dfv_display.to_csv(index=False).encode("utf-8"),
             file_name="swc_table_filtered.csv",
             mime="text/csv",
             use_container_width=True,
+            key="dl_swc_table_filtered"
         )
 
         # ====== SWC Knowledge ======
