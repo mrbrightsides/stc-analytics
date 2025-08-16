@@ -1367,9 +1367,10 @@ elif page == "Security (SWC)":
         dfv = dfv.sort_values(["severity","timestamp"], ascending=[True, False])
         
         # tampilkan & unduh
-        dfv_display = dfv[detail_cols].copy()
-        dfv_display["timestamp"] = pd.to_datetime(dfv_display["timestamp"], errors="coerce") \
-                                        .dt.strftime("%Y-%m-%d %H:%M:%S")
+        dfv_display = dfv[COLS_SWC].copy()
+        dfv_display["timestamp"] = (
+            pd.to_datetime(dfv_display["timestamp"], errors="coerce").dt.strftime("%Y-%m-%d %H:%M:%S")
+        )
         mask_zero = (pd.to_numeric(dfv_display["line_start"], errors="coerce").fillna(0) == 0) & \
                     (pd.to_numeric(dfv_display["line_end"],   errors="coerce").fillna(0) == 0)
         dfv_display.loc[mask_zero, ["line_start","line_end"]] = pd.NA
