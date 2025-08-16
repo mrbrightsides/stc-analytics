@@ -1317,38 +1317,32 @@ elif page == "Security (SWC)":
         base = swc_plot  # hasil query DuckDB
         dfv = base.copy()
 
+        for c in detail_cols:
+            if c not in dfv.columns:
+                dfv[c] = None
+
         # isi kosong untuk kolom teks
         text_cols = ["finding_id","network","contract","file","swc_id",
                      "title","severity","status","remediation","commit_hash"]
-        dfv[text_cols] = dfv[text_cols].fillna("")
+        dfv[text_cols] = dfv[text_cols].fillna("").astype(str)
 
+        for c in ["line_start","line_end"]:
+            dfv[c] = pd.to_numeric(dfv[c], errors="coerce").fillna(0).astype("Int64")
+
+        dfv["severity"] = (
+            dfv["severity"]
+              .str.lower()
+              .replace({"info": "informational", "informative": "informational"})
+        )
+        sev_order = pd.CategoricalDtype(["critical","high","medium","low","informational"], ordered=True)
+        dfv["severity"] = dfv["severity"].astype(sev_order)
+
+        dfv = dfv.sort_values(["severity","timestamp"], ascending=[True, False])
+        
         # ketikkan angka
         dfv["line_start"] = pd.to_numeric(dfv["line_start"], errors="coerce").astype("Int64")
         dfv["line_end"]   = pd.to_numeric(dfv["line_end"],   errors="coerce").astype("Int64")
         #dfv["confidence"] = pd.to_numeric(dfv["confidence"], errors="coerce").round(2)
-        
-        # urutkan (opsional)
-        sev_order = pd.CategoricalDtype(["critical","high","medium","low"], ordered=True)
-        # (opsional) normalize label
-        dfv["severity"] = (
-            dfv["severity"]
-              .astype(str)
-              .str.lower()
-              .replace({
-                  "info": "informational",
-                  "informative": "informational",
-                  "warning": "low",
-                  "medium ": "medium"  # trimming kasus aneh
-              })
-        )
-        
-        # urutan kategori + include 'informational'
-        sev_order = pd.CategoricalDtype(
-            ["critical", "high", "medium", "low", "informational"], ordered=True
-        )
-        dfv["severity"] = dfv["severity"].astype(sev_order)
-
-        dfv = dfv.sort_values(["severity","timestamp"], ascending=[True, False])
         
         # tampilkan & unduh
         dfv_display = dfv[detail_cols].copy()
