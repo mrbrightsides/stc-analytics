@@ -1345,10 +1345,10 @@ elif page == "Security (SWC)":
 
         st.download_button(
             "⬇️ Download tabel di atas (CSV)",
-            data=csv_bytes(swc_plot[detail_cols]),
+            data=dfv_display.to_csv(index=False).encode("utf-8"),
             file_name="swc_table_filtered.csv",
             mime="text/csv",
-            use_container_width=True
+            use_container_width=True,
         )
 
         # ====== SWC Knowledge ======
