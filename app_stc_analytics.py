@@ -1356,7 +1356,6 @@ elif page == "Security (SWC)":
         sev_order = pd.CategoricalDtype(["critical","high","medium","low","informational"], ordered=True)
         dfv["severity"] = dfv["severity"].astype(sev_order)
         
-        # --- confidence: angka dulu, kalau gagal map dari kata ---
         if "confidence" in dfv.columns:
             conf_str = dfv["confidence"].astype("string")
             conf_num = pd.to_numeric(conf_str, errors="coerce")                # 0.5, 0.75, dst
@@ -1381,6 +1380,11 @@ elif page == "Security (SWC)":
         )
 
         dfv_display["commit_hash"] = dfv_display["commit_hash"].astype("string").fillna("").str[:7]
+
+        st.write("swc_plot columns:", list(swc_plot.columns))
+        st.write("remediation non-empty:", swc_plot["remediation"].astype("string").str.len().gt(0).sum())
+        st.write("commit_hash non-empty:", swc_plot["commit_hash"].astype("string").str.len().gt(0).sum())
+
         
         st.dataframe(dfv_display, use_container_width=True)
 
@@ -1392,7 +1396,6 @@ elif page == "Security (SWC)":
             use_container_width=True,
             key="dl_swc_table_filtered",
         )
-
 
         # ====== SWC Knowledge ======
         st.markdown("### 🔎 SWC Knowledge")
