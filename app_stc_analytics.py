@@ -4,6 +4,7 @@ import duckdb
 import pandas as pd
 import plotly.express as px
 import json, re, hashlib
+import numpy as np
 from datetime import datetime
 from pathlib import Path
 from tools_bench import render_bench_validation_db
@@ -1078,12 +1079,20 @@ elif page == "Security (SWC)":
     # --- mapping CSV/NDJSON -> schema + id fallback + dedup ---
     def map_swc(df: pd.DataFrame) -> pd.DataFrame:
         cols = [
-            "finding_id","timestamp","network","contract","file","line_start","line_end",
-            "swc_id","title","severity","confidence","status","remediation","commit_hash"
+            "finding_id","timestamp","network","contract","file",
+            "line_start","line_end","swc_id","title","severity",
+            "confidence","status","remediation","commit_hash"
         ]
         for c in cols:
             if c not in df.columns:
                 df[c] = None
+
+        d["confidence"] = pd.to_numeric(
+            d["confidence"].replace(r"^\s*$", np.nan, regex=True),
+            errors="coerce"
+        )
+        for c in ["line_start", "line_end"]:
+            d[c] = pd.to_numeric(d[c].replace(r"^\s*$", np.nan, regex=True), errors="coerce")
 
         # fallback id: contract::swc_id::line_start
         fallback = df.apply(
