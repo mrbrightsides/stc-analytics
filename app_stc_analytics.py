@@ -1325,7 +1325,7 @@ elif page == "Security (SWC)":
         # ketikkan angka
         dfv["line_start"] = pd.to_numeric(dfv["line_start"], errors="coerce").astype("Int64")
         dfv["line_end"]   = pd.to_numeric(dfv["line_end"],   errors="coerce").astype("Int64")
-        dfv["confidence"] = pd.to_numeric(dfv["confidence"], errors="coerce").round(2)
+        #dfv["confidence"] = pd.to_numeric(dfv["confidence"], errors="coerce").round(2)
         
         # urutkan (opsional)
         sev_order = pd.CategoricalDtype(["critical","high","medium","low"], ordered=True)
