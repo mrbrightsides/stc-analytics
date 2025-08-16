@@ -1205,18 +1205,18 @@ elif page == "Security (SWC)":
             ing += upsert("swc_findings", d, ["finding_id"], COLS_SWC)
 
         if swc_nd is not None:
-        rows = []
-        for line in swc_nd:
-            if not line: 
-                continue
-            try:
-                rows.append(json.loads(line.decode("utf-8")))
-            except Exception:
-                pass
-        if rows:
-            d = pd.DataFrame(rows)
-            d = map_swc(d)
-            ing += upsert("swc_findings", d, ["finding_id"], COLS_SWC)
+            rows = []
+            for line in swc_nd:
+                if not line: 
+                    continue
+                try:
+                    rows.append(json.loads(line.decode("utf-8")))
+                except Exception:
+                    pass
+            if rows:
+                d = pd.DataFrame(rows)
+                d = map_swc(d)
+                ing += upsert("swc_findings", d, ["finding_id"], COLS_SWC)
 
         if ing:
             st.success(f"{ing} temuan masuk ke swc_findings.")
