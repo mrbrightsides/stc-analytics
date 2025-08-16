@@ -1076,25 +1076,41 @@ if page == "Cost (Vision)":
 elif page == "Security (SWC)":
     st.title("🛡️ Security Analytics — STC for SWC")
 
+    COLS_SWC = [
+        "finding_id","timestamp","network","contract","file",
+        "line_start","line_end","swc_id","title","severity",
+        "confidence","status","remediation","commit_hash",
+    ]
+
     # --- mapping CSV/NDJSON -> schema + id fallback + dedup ---
     def map_swc(df: pd.DataFrame) -> pd.DataFrame:
-        COLS_SWC = [
-            "finding_id","timestamp","network","contract","file",
-            "line_start","line_end","swc_id","title","severity",
-            "confidence","status","remediation","commit_hash",
-        ]
-
+        # pastikan semua kolom ada
         for c in COLS_SWC:
             if c not in df.columns:
-                df[c] = None
-
-        d["confidence"] = pd.to_numeric(
-            d["confidence"].replace(r"^\s*$", np.nan, regex=True),
-            errors="coerce"
+                df[c] = pd.NA
+    
+        # kolom teks jadi string & isi kosong
+        text_cols = [
+            "finding_id","network","contract","file","swc_id",
+            "title","severity","status","remediation","commit_hash"
+        ]
+        df[text_cols] = df[text_cols].astype("string").fillna("")
+    
+        # numeric
+        df["confidence"] = pd.to_numeric(
+            df["confidence"].replace(r"^\s*$", np.nan, regex=True), errors="coerce"
         )
         for c in ["line_start", "line_end"]:
-            d[c] = pd.to_numeric(d[c].replace(r"^\s*$", np.nan, regex=True), errors="coerce")
-
+            df[c] = pd.to_numeric(
+                df[c].replace(r"^\s*$", np.nan, regex=True), errors="coerce"
+            ).astype("Int64")
+    
+        # normalisasi severity ringan
+        df["severity"] = (
+            df["severity"].str.lower()
+            .replace({"info": "informational", "informative": "informational"})
+        )
+    
         # fallback id: contract::swc_id::line_start
         fallback = df.apply(
             lambda r: f"{r.get('contract','')}::{r.get('swc_id','')}::{r.get('line_start','')}",
@@ -1105,16 +1121,13 @@ elif page == "Security (SWC)":
         else:
             mask = df["finding_id"].isna() | (df["finding_id"].astype(str).str.strip() == "")
             df.loc[mask, "finding_id"] = fallback[mask]
-
-        df = df.dropna(subset=["timestamp"])  # bersihin row dengan timestamp kosong
-
-        from dateutil import parser  # pastikan import ini ada
-
+        df["finding_id"] = df["finding_id"].fillna("UNKNOWN")
+    
+        # parsing timestamp aman
+        from dateutil import parser
         def parse_timestamp_safe(ts):
             try:
-                dt = parser.isoparse(str(ts).strip())
-                # jadikan pandas Timestamp & buang timezone biar naive
-                dt = pd.Timestamp(dt)
+                dt = pd.Timestamp(parser.isoparse(str(ts).strip()))
                 try:
                     dt = dt.tz_localize(None)
                 except Exception:
@@ -1122,20 +1135,19 @@ elif page == "Security (SWC)":
                 return dt
             except Exception:
                 return pd.NaT
-                
+    
         df["timestamp"] = df["timestamp"].apply(parse_timestamp_safe)
-
         invalid_rows = int(df["timestamp"].isna().sum())
         st.info(f"🔴 Jumlah timestamp gagal parsing: {invalid_rows}")
-
-        df["finding_id"] = df["finding_id"].fillna("UNKNOWN")
         df["timestamp"] = df["timestamp"].fillna(pd.Timestamp.utcnow())
-
+    
         st.write("📅 Preview timestamp:")
         st.write(df["timestamp"].head())
-
+    
+        # dedup by finding_id
         df = df.drop_duplicates(subset=["finding_id"], keep="last").copy()
         return df[COLS_SWC]
+
 
     # --- Ingest (AUTO seperti Bench/Vision) ---
     with st.expander("Ingest CSV/NDJSON SWC Findings", expanded=False):
@@ -1193,18 +1205,18 @@ elif page == "Security (SWC)":
             ing += upsert("swc_findings", d, ["finding_id"], COLS_SWC)
 
         if swc_nd is not None:
-            rows = []
-            for line in swc_nd:
-                if not line:
-                    continue
-                try:
-                    rows.append(json.loads(line.decode("utf-8")))
-                except Exception:
-                    pass
-            if rows:
-                d = pd.DataFrame(rows)
-                d = map_swc(d)
-                ing += upsert("swc_findings", d, ["finding_id"], d.columns.tolist())
+        rows = []
+        for line in swc_nd:
+            if not line: 
+                continue
+            try:
+                rows.append(json.loads(line.decode("utf-8")))
+            except Exception:
+                pass
+        if rows:
+            d = pd.DataFrame(rows)
+            d = map_swc(d)
+            ing += upsert("swc_findings", d, ["finding_id"], COLS_SWC)
 
         if ing:
             st.success(f"{ing} temuan masuk ke swc_findings.")
