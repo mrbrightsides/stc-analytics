@@ -1329,7 +1329,25 @@ elif page == "Security (SWC)":
         
         # urutkan (opsional)
         sev_order = pd.CategoricalDtype(["critical","high","medium","low"], ordered=True)
-        dfv["severity"] = dfv["severity"].str.lower().astype(sev_order)
+        # (opsional) normalize label
+        dfv["severity"] = (
+            dfv["severity"]
+              .astype(str)
+              .str.lower()
+              .replace({
+                  "info": "informational",
+                  "informative": "informational",
+                  "warning": "low",
+                  "medium ": "medium"  # trimming kasus aneh
+              })
+        )
+        
+        # urutan kategori + include 'informational'
+        sev_order = pd.CategoricalDtype(
+            ["critical", "high", "medium", "low", "informational"], ordered=True
+        )
+        dfv["severity"] = dfv["severity"].astype(sev_order)
+
         dfv = dfv.sort_values(["severity","timestamp"], ascending=[True, False])
         
         # tampilkan & unduh
