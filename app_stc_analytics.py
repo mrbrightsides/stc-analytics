@@ -1107,21 +1107,28 @@ elif page == "Security (SWC)":
 
         df = df.dropna(subset=["timestamp"])  # bersihin row dengan timestamp kosong
 
-        from dateutil import parser
+        from dateutil import parser  # pastikan import ini ada
 
         def parse_timestamp_safe(ts):
             try:
-                return parser.isoparse(str(ts).strip())
+                dt = parser.isoparse(str(ts).strip())
+                # jadikan pandas Timestamp & buang timezone biar naive
+                dt = pd.Timestamp(dt)
+                try:
+                    dt = dt.tz_localize(None)
+                except Exception:
+                    pass
+                return dt
             except Exception:
                 return pd.NaT
-
+                
         df["timestamp"] = df["timestamp"].apply(parse_timestamp_safe)
-        invalid_rows = df["timestamp"].isna().sum()
+
+        invalid_rows = int(df["timestamp"].isna().sum())
         st.info(f"🔴 Jumlah timestamp gagal parsing: {invalid_rows}")
 
         df["finding_id"] = df["finding_id"].fillna("UNKNOWN")
         df["timestamp"] = df["timestamp"].fillna(pd.Timestamp.utcnow())
-        df["timestamp"] = df["timestamp"].dt.strftime("%Y-%m-%d %H:%M:%S")
 
         st.write("📅 Preview timestamp:")
         st.write(df["timestamp"].head())
@@ -1363,12 +1370,13 @@ elif page == "Security (SWC)":
 
         st.download_button(
             "⬇️ Download tabel di atas (CSV)",
-            data=dfv.to_csv(index=False, na_rep="").encode("utf-8"),  # raw numerik, kosong jadi ''
+            data=dfv_display.to_csv(index=False, na_rep="").encode("utf-8"),
             file_name="swc_table_filtered.csv",
             mime="text/csv",
             use_container_width=True,
-            key="dl_swc_table_filtered"
+            key="dl_swc_table_filtered",
         )
+
 
         # ====== SWC Knowledge ======
         st.markdown("### 🔎 SWC Knowledge")
