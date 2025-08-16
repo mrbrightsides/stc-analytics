@@ -1312,6 +1312,21 @@ elif page == "Security (SWC)":
             "timestamp","network","contract","file","line_start","swc_id","title",
             "severity","confidence","status","remediation"
         ]
+
+        dfv = df.copy()
+
+        text_cols = ["network","contract","file","swc_id","title","severity","status","remediation"]
+        dfv[text_cols] = dfv[text_cols].fillna("")
+
+        dfv["line_start"] = dfv["line_start"].astype("Int64")  # biar tampil kosong saat NaN
+        dfv["confidence"] = (dfv["confidence"]*100).round(1).astype("Float64")
+
+        sev_order = pd.CategoricalDtype(["critical","high","medium","low"], ordered=True)
+        dfv["severity"] = dfv["severity"].str.lower().astype(sev_order)
+        dfv = dfv.sort_values(["severity","timestamp"], ascending=[True, False])
+
+        st.dataframe(dfv, use_container_width=True)
+
         st.dataframe(swc_plot[detail_cols], use_container_width=True)
         st.download_button(
             "⬇️ Download tabel di atas (CSV)",
