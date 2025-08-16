@@ -1257,6 +1257,10 @@ elif page == "Security (SWC)":
                 d = map_swc(d)
                 ing += upsert("swc_findings", d, ["finding_id"], COLS_SWC)
 
+        st.write("non-empty remediation:", d["remediation"].astype(str).str.len().gt(0).sum())
+        st.write("non-empty commit_hash:", d["commit_hash"].astype(str).str.len().gt(0).sum())
+
+
         if ing:
             st.success(f"{ing} temuan masuk ke swc_findings.")
 
