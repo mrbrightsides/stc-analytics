@@ -1367,7 +1367,7 @@ elif page == "Security (SWC)":
         dfv = dfv.sort_values(["severity","timestamp"], ascending=[True, False])
         
         # tampilkan & unduh
-        dfv_display = dfv[COLS_SWC].copy()
+        dfv_display = dfv[detail_cols].copy()
         dfv_display["timestamp"] = (
             pd.to_datetime(dfv_display["timestamp"], errors="coerce").dt.strftime("%Y-%m-%d %H:%M:%S")
         )
