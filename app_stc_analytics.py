@@ -1334,10 +1334,17 @@ elif page == "Security (SWC)":
         
         # tampilkan & unduh
         dfv_display = dfv[detail_cols].copy()
+        dfv_display["timestamp"] = pd.to_datetime(dfv_display["timestamp"], errors="coerce") \
+                                       .dt.strftime("%Y-%m-%d %H:%M:%S")
+        
+        mask_zero = (dfv_display["line_start"] == 0) & (dfv_display["line_end"] == 0)
+        dfv_display.loc[mask_zero, ["line_start","line_end"]] = pd.NA
+        
         st.dataframe(dfv_display, use_container_width=True)
+        
         st.download_button(
             "⬇️ Download tabel di atas (CSV)",
-            data=dfv_display.to_csv(index=False).encode("utf-8"),
+            data=dfv.to_csv(index=False, na_rep="").encode("utf-8"),  # raw numerik, kosong jadi ''
             file_name="swc_table_filtered.csv",
             mime="text/csv",
             use_container_width=True,
