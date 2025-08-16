@@ -1316,12 +1316,7 @@ elif page == "Security (SWC)":
 
         # ====== table ======
         st.markdown("### Detail Temuan")
-        detail_cols = [
-            "finding_id","timestamp","network","contract","file",
-            "line_start","line_end","swc_id","title","severity",
-            "confidence","status","remediation","commit_hash"
-        ]
-
+        detail_cols = COLS_SWC
         base = swc_plot  # hasil query DuckDB
         dfv = base.copy()
 
