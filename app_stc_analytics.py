@@ -1381,8 +1381,6 @@ elif page == "Security (SWC)":
         )
 
         dfv_display["commit_hash"] = dfv_display["commit_hash"].astype("string").fillna("").str[:7]
-
-        dfv_display = dfv_display.fillna("")
         
         st.dataframe(dfv_display, use_container_width=True)
 
