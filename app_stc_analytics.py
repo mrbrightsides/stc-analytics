@@ -1084,7 +1084,7 @@ elif page == "Security (SWC)":
             "confidence","status","remediation","commit_hash",
         ]
 
-        for c in cols:
+        for c in COLS_SWC:
             if c not in df.columns:
                 df[c] = None
 
