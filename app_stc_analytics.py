@@ -85,26 +85,65 @@ def read_ndjson(uploaded):
         return None
 
 # --- CSV reader yang toleran (mobile-friendly) ---
-def read_csv_any(uploaded):
-    """Baca CSV dari st.file_uploader apa pun MIME/ekstensinya."""
+def read_csv_any(uploaded) -> pd.DataFrame | None:
+    """Baca CSV dari st.file_uploader apa pun MIME/ekstensinya, aman untuk teks panjang.
+    - Semua kolom dibaca sebagai string (dtype=str)
+    - Tidak mengubah '' menjadi NaN (keep_default_na=False, na_filter=False)
+    - Tahan baris rusak (on_bad_lines='skip')
+    """
+    import io
+    import pandas as pd
+
     if uploaded is None:
         return None
-    # coba pointer ke awal (kalau objeknya mendukung)
+
+    # rewind kalau objek mendukung
     try:
         uploaded.seek(0)
     except Exception:
         pass
-    # percobaan 1: langsung ke pandas
-    try:
-        return pd.read_csv(uploaded, engine="python", on_bad_lines="skip", encoding="utf-8")
-    except Exception:
-        # percobaan 2: paksa decode bytes → StringIO
-        data = uploaded.getvalue() if hasattr(uploaded, "getvalue") else uploaded.read()
-        return pd.read_csv(
-            io.StringIO(data.decode("utf-8", "ignore")),
-            engine="python",
-            on_bad_lines="skip"
-        )
+
+    # Coba beberapa encoding umum
+    for enc in ("utf-8", "utf-8-sig", "latin-1"):
+        try:
+            # Langsung ke pandas
+            df = pd.read_csv(
+                uploaded,
+                dtype=str,
+                keep_default_na=False,  # jangan konversi '' -> NaN
+                na_filter=False,        # perlakukan '' sebagai string
+                engine="python",
+                on_bad_lines="skip",
+                encoding=enc,
+            )
+            break
+        except Exception:
+            # Fallback: baca bytes -> decode -> StringIO
+            try:
+                try:
+                    uploaded.seek(0)
+                except Exception:
+                    pass
+                data = uploaded.getvalue() if hasattr(uploaded, "getvalue") else uploaded.read()
+                s = data.decode(enc, errors="ignore")
+                df = pd.read_csv(
+                    io.StringIO(s),
+                    dtype=str,
+                    keep_default_na=False,
+                    na_filter=False,
+                    engine="python",
+                    on_bad_lines="skip",
+                )
+                break
+            except Exception:
+                df = None
+
+    if df is None:
+        return None
+
+    # Rapikan header
+    df.columns = [c.strip() for c in df.columns]
+    return df
 
 # -------------------------------
 # App & DB setup
