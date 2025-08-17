@@ -152,7 +152,7 @@ def read_csv_any(uploaded):
 # App & DB setup
 # -------------------------------
 st.set_page_config(
-    page_title="STC Insight",
+    page_title="STC Analytics",
     page_icon="🧬",
     layout="wide"
 )
