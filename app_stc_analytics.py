@@ -86,44 +86,30 @@ def read_ndjson(uploaded):
 
 # --- CSV reader yang toleran (mobile-friendly) ---
 def read_csv_any(uploaded) -> pd.DataFrame | None:
-    """Baca CSV dari st.file_uploader apa pun MIME/ekstensinya, aman untuk teks panjang.
-    - Semua kolom dibaca sebagai string (dtype=str)
-    - Tidak mengubah '' menjadi NaN (keep_default_na=False, na_filter=False)
-    - Tahan baris rusak (on_bad_lines='skip')
-    """
-    import io
-    import pandas as pd
-
+    import io, pandas as pd
     if uploaded is None:
         return None
-
-    # rewind kalau objek mendukung
     try:
         uploaded.seek(0)
     except Exception:
         pass
 
-    # Coba beberapa encoding umum
     for enc in ("utf-8", "utf-8-sig", "latin-1"):
         try:
-            # Langsung ke pandas
             df = pd.read_csv(
                 uploaded,
                 dtype=str,
-                keep_default_na=False,  # jangan konversi '' -> NaN
-                na_filter=False,        # perlakukan '' sebagai string
+                keep_default_na=False,
+                na_filter=False,
                 engine="python",
                 on_bad_lines="skip",
                 encoding=enc,
             )
             break
         except Exception:
-            # Fallback: baca bytes -> decode -> StringIO
             try:
-                try:
-                    uploaded.seek(0)
-                except Exception:
-                    pass
+                try: uploaded.seek(0)
+                except Exception: pass
                 data = uploaded.getvalue() if hasattr(uploaded, "getvalue") else uploaded.read()
                 s = data.decode(enc, errors="ignore")
                 df = pd.read_csv(
@@ -140,8 +126,6 @@ def read_csv_any(uploaded) -> pd.DataFrame | None:
 
     if df is None:
         return None
-
-    # Rapikan header
     df.columns = [c.strip() for c in df.columns]
     return df
 
@@ -1240,28 +1224,18 @@ elif page == "Security (SWC)":
         ing = 0
         if swc_csv is not None:
             d = read_csv_any(swc_csv)
-            d = map_swc(d)
-            ing += upsert("swc_findings", d, ["finding_id"], COLS_SWC)
+            # >>> tambahkan debug & normalisasi ringan:
+            if d is not None:
+                d.columns = [c.strip() for c in d.columns]
+                for col in ("remediation", "commit_hash"):
+                    if col not in d.columns:
+                        d[col] = ""
+                    d[col] = d[col].astype(str)
+        
+                st.write("csv cols:", list(d.columns))
+                st.write("csv remediation non-empty:", (d["remediation"].str.len() > 0).sum())
+                st.write("csv commit_hash non-empty:", (d["commit_hash"].str.len() > 0).sum())
 
-        if swc_nd is not None:
-            rows = []
-            for line in swc_nd:
-                if not line: 
-                    continue
-                try:
-                    rows.append(json.loads(line.decode("utf-8")))
-                except Exception:
-                    pass
-            if rows:
-                d = pd.DataFrame(rows)
-                d = map_swc(d)
-                ing += upsert("swc_findings", d, ["finding_id"], COLS_SWC)
-
-        if ing:
-            st.success(f"{ing} temuan masuk ke swc_findings.")
-
-    st.write("non-empty remediation:", d["remediation"].astype(str).str.len().gt(0).sum())
-    st.write("non-empty commit_hash:", d["commit_hash"].astype(str).str.len().gt(0).sum())
 
     # ===== DI LUAR EXPANDER (tapi masih di halaman SWC) =====
     want_load = st.session_state.get("load_existing", False)
