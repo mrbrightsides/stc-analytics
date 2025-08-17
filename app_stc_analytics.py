@@ -5,6 +5,7 @@ import pandas as pd
 import plotly.express as px
 import json, re, hashlib
 import numpy as np
+import csv
 from datetime import datetime
 from pathlib import Path
 from tools_bench import render_bench_validation_db
@@ -89,22 +90,44 @@ def read_csv_any(uploaded):
     """Baca CSV dari st.file_uploader apa pun MIME/ekstensinya."""
     if uploaded is None:
         return None
-    # coba pointer ke awal (kalau objeknya mendukung)
+
+    # coba pointer ke awal
     try:
         uploaded.seek(0)
     except Exception:
         pass
-    # percobaan 1: langsung ke pandas
+
+    # Percobaan 1: langsung ke pandas dengan setting yang aman untuk teks
     try:
-        return pd.read_csv(uploaded, engine="python", on_bad_lines="skip", encoding="utf-8")
+        return pd.read_csv(
+            uploaded,
+            sep=",",
+            engine="python",
+            on_bad_lines="skip",
+            encoding="utf-8",
+            dtype=str,                # semua kolom str biar gak diubah-ubah
+            keep_default_na=False,    # "" tetap "", bukan NaN
+            na_filter=False,          # jangan auto-NA
+            quoting=csv.QUOTE_MINIMAL # hormati quotes dari exporter
+        )
     except Exception:
-        # percobaan 2: paksa decode bytes → StringIO
+        pass
+
+    # Percobaan 2: paksa bytes -> StringIO
+    try:
         data = uploaded.getvalue() if hasattr(uploaded, "getvalue") else uploaded.read()
         return pd.read_csv(
             io.StringIO(data.decode("utf-8", "ignore")),
+            sep=",",
             engine="python",
-            on_bad_lines="skip"
+            on_bad_lines="skip",
+            dtype=str,
+            keep_default_na=False,
+            na_filter=False,
+            quoting=csv.QUOTE_MINIMAL
         )
+    except Exception:
+        return None
 
 # -------------------------------
 # App & DB setup
@@ -1147,7 +1170,6 @@ elif page == "Security (SWC)":
         # dedup by finding_id
         df = df.drop_duplicates(subset=["finding_id"], keep="last").copy()
         return df[COLS_SWC]
-
 
     # --- Ingest (AUTO seperti Bench/Vision) ---
     with st.expander("Ingest CSV/NDJSON SWC Findings", expanded=False):
