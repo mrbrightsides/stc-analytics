@@ -85,49 +85,26 @@ def read_ndjson(uploaded):
         return None
 
 # --- CSV reader yang toleran (mobile-friendly) ---
-def read_csv_any(uploaded) -> pd.DataFrame | None:
-    import io, pandas as pd
+def read_csv_any(uploaded):
+    """Baca CSV dari st.file_uploader apa pun MIME/ekstensinya."""
     if uploaded is None:
         return None
+    # coba pointer ke awal (kalau objeknya mendukung)
     try:
         uploaded.seek(0)
     except Exception:
         pass
-
-    for enc in ("utf-8", "utf-8-sig", "latin-1"):
-        try:
-            df = pd.read_csv(
-                uploaded,
-                dtype=str,
-                keep_default_na=False,
-                na_filter=False,
-                engine="python",
-                on_bad_lines="skip",
-                encoding=enc,
-            )
-            break
-        except Exception:
-            try:
-                try: uploaded.seek(0)
-                except Exception: pass
-                data = uploaded.getvalue() if hasattr(uploaded, "getvalue") else uploaded.read()
-                s = data.decode(enc, errors="ignore")
-                df = pd.read_csv(
-                    io.StringIO(s),
-                    dtype=str,
-                    keep_default_na=False,
-                    na_filter=False,
-                    engine="python",
-                    on_bad_lines="skip",
-                )
-                break
-            except Exception:
-                df = None
-
-    if df is None:
-        return None
-    df.columns = [c.strip() for c in df.columns]
-    return df
+    # percobaan 1: langsung ke pandas
+    try:
+        return pd.read_csv(uploaded, engine="python", on_bad_lines="skip", encoding="utf-8")
+    except Exception:
+        # percobaan 2: paksa decode bytes → StringIO
+        data = uploaded.getvalue() if hasattr(uploaded, "getvalue") else uploaded.read()
+        return pd.read_csv(
+            io.StringIO(data.decode("utf-8", "ignore")),
+            engine="python",
+            on_bad_lines="skip"
+        )
 
 # -------------------------------
 # App & DB setup
@@ -1224,18 +1201,25 @@ elif page == "Security (SWC)":
         ing = 0
         if swc_csv is not None:
             d = read_csv_any(swc_csv)
-            # >>> tambahkan debug & normalisasi ringan:
-            if d is not None:
-                d.columns = [c.strip() for c in d.columns]
-                for col in ("remediation", "commit_hash"):
-                    if col not in d.columns:
-                        d[col] = ""
-                    d[col] = d[col].astype(str)
-        
-                st.write("csv cols:", list(d.columns))
-                st.write("csv remediation non-empty:", (d["remediation"].str.len() > 0).sum())
-                st.write("csv commit_hash non-empty:", (d["commit_hash"].str.len() > 0).sum())
+            d = map_swc(d)
+            ing += upsert("swc_findings", d, ["finding_id"], COLS_SWC)
 
+        if swc_nd is not None:
+            rows = []
+            for line in swc_nd:
+                if not line: 
+                    continue
+                try:
+                    rows.append(json.loads(line.decode("utf-8")))
+                except Exception:
+                    pass
+            if rows:
+                d = pd.DataFrame(rows)
+                d = map_swc(d)
+                ing += upsert("swc_findings", d, ["finding_id"], COLS_SWC)
+
+        if ing:
+            st.success(f"{ing} temuan masuk ke swc_findings.")
 
     # ===== DI LUAR EXPANDER (tapi masih di halaman SWC) =====
     want_load = st.session_state.get("load_existing", False)
@@ -1372,6 +1356,7 @@ elif page == "Security (SWC)":
         sev_order = pd.CategoricalDtype(["critical","high","medium","low","informational"], ordered=True)
         dfv["severity"] = dfv["severity"].astype(sev_order)
         
+        # --- confidence: angka dulu, kalau gagal map dari kata ---
         if "confidence" in dfv.columns:
             conf_str = dfv["confidence"].astype("string")
             conf_num = pd.to_numeric(conf_str, errors="coerce")                # 0.5, 0.75, dst
@@ -1382,25 +1367,12 @@ elif page == "Security (SWC)":
         dfv = dfv.sort_values(["severity","timestamp"], ascending=[True, False])
         
         # tampilkan & unduh
-        dfv_display = dfv[COLS_SWC].copy()
+        dfv_display = dfv[detail_cols].copy()
         dfv_display["timestamp"] = (
             pd.to_datetime(dfv_display["timestamp"], errors="coerce").dt.strftime("%Y-%m-%d %H:%M:%S")
         )
         mask_zero = (dfv_display["line_start"] == 0) & (dfv_display["line_end"] == 0)
         dfv_display.loc[mask_zero, ["line_start","line_end"]] = pd.NA
-
-        dfv_display["confidence"] = (
-            pd.to_numeric(dfv_display["confidence"], errors="coerce")
-              .round(2)
-              .map(lambda x: "" if pd.isna(x) else f"{x:g}")
-        )
-
-        dfv_display["commit_hash"] = dfv_display["commit_hash"].astype("string").fillna("").str[:7]
-
-        st.write("swc_plot columns:", list(swc_plot.columns))
-        st.write("remediation non-empty:", swc_plot["remediation"].astype("string").str.len().gt(0).sum())
-        st.write("commit_hash non-empty:", swc_plot["commit_hash"].astype("string").str.len().gt(0).sum())
-
         
         st.dataframe(dfv_display, use_container_width=True)
 
@@ -1412,6 +1384,7 @@ elif page == "Security (SWC)":
             use_container_width=True,
             key="dl_swc_table_filtered",
         )
+
 
         # ====== SWC Knowledge ======
         st.markdown("### 🔎 SWC Knowledge")
