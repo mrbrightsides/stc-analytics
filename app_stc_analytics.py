@@ -79,11 +79,30 @@ def read_ndjson(uploaded):
         uploaded.seek(0)
     except Exception:
         pass
-    try:
-        return pd.read_json(uploaded, lines=True)
-    except Exception as e:
-        st.error(f"Gagal membaca NDJSON: {e}")
+    rows = []
+    for raw in uploaded:  # raw bisa bytes ATAU str
+        if not raw:
+            continue
+        s = raw.decode("utf-8", "ignore") if isinstance(raw, (bytes, bytearray)) else str(raw)
+        s = s.strip()
+        if not s:
+            continue
+        try:
+            obj = json.loads(s)
+        except Exception:
+            continue
+        rows.append(obj)
+
+    if not rows:
         return None
+
+    # Jika ada objek bersarang -> luruskan
+    from pandas import json_normalize
+    try:
+        df = json_normalize(rows, sep="_")
+    except Exception:
+        df = pd.DataFrame(rows)
+    return df
 
 # --- CSV reader yang toleran (mobile-friendly) ---
 def read_csv_any(uploaded):
