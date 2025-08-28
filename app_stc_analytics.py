@@ -10,6 +10,9 @@ from datetime import datetime
 from pathlib import Path
 from tools_bench import render_bench_validation_db
 
+if st.query_params.get("ping") == "1":
+    st.write("ok"); st.stop()
+
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 
 def _file_hash(p: Path) -> str:
