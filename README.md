@@ -18,6 +18,52 @@ Satu tempat buat pantau **biaya gas (Vision)**, **temuan keamanan (SWC)**, dan *
 
 ---
 
+## 🌐 STC Ecosystem
+
+| Module      | Link | Status | Badge |
+|-------------|------|--------|-------|
+| Analytics   | [stc-analytics.streamlit.app](https://stc-analytics.streamlit.app/) | ✅ Stable | ![Analytics](https://img.shields.io/badge/STC-Analytics-blue) |
+| Converter   | [stc-converter.streamlit.app](https://stc-converter.streamlit.app/) | ✅ Stable | ![Converter](https://img.shields.io/badge/STC-Converter-orange) |
+| GasVision   | [stc-gasvision.streamlit.app](https://stc-gasvision.streamlit.app/) | ✅ Stable | ![GasVision](https://img.shields.io/badge/STC-GasVision-crimson) |
+| Insight     | [stc-insight.streamlit.app](https://stc-insight.streamlit.app/) | ✅ Stable | ![Insight](https://img.shields.io/badge/STC-Insight-purple) |
+| Bench       | [stc-bench.streamlit.app](https://stc-bench.streamlit.app/) | 🔄 Dev | ![Bench](https://img.shields.io/badge/STC-Bench-teal) |
+
+```mermaid
+flowchart TD
+    Core["🏛️ STC Core"]
+
+    subgraph Ecosystem ["STC Ecosystem"]
+        A["📊 Analytics"]
+        B["🔄 Converter"]
+        C["⛽ GasVision"]
+        D["🔍 Insight"]
+        E["⚡ Bench"]
+    end
+
+    Core --> A
+    Core --> B
+    Core --> C
+    Core --> D
+    Core --> E
+
+    %% Colors (use full hex & colon syntax)
+    style Core fill:#2d3748,stroke:#ffffff,color:#ffffff
+    style A fill:#2563eb,stroke:#ffffff,color:#ffffff
+    style B fill:#f97316,stroke:#ffffff,color:#ffffff
+    style C fill:#dc2626,stroke:#ffffff,color:#ffffff
+    style D fill:#7c3aed,stroke:#ffffff,color:#ffffff
+    style E fill:#16a34a,stroke:#ffffff,color:#ffffff
+
+    %% Clickable nodes (open module pages)
+    click A "https://stc-analytics.streamlit.app/" "Open STC Analytics"
+    click B "https://stc-converter.streamlit.app/" "Open STC Converter"
+    click C "https://stc-gasvision.streamlit.app/" "Open STC GasVision"
+    click D "https://stc-insight.streamlit.app/" "Open STC Insight"
+    click E "https://stc-bench.streamlit.app/" "Open STC Bench"
+```
+
+---
+
 ## ✨ Fitur
 - **Cost (Vision):** unggah CSV/NDJSON dari STC GasVision, lihat metrik & tren biaya gas per fungsi.
 - **Security (SWC):** unggah temuan SWC (CSV/NDJSON), filter per network/severity, heatmap _SWC × Severity_, dan **SWC Knowledge** (penjelasan/mitigasi dari `swc_kb.json`).
@@ -130,3 +176,5 @@ MIT — silakan gunakan dan sesuaikan sesuai kebutuhan.
 ## 🙌 Kontribusi & Kontak
 - Laporkan bug/fitur baru: **Issues** pada repo.
 - Hubungi: https://github.com/mrbrightsides
+
+
