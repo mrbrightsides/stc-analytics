@@ -1,0 +1,13 @@
+name: Keep Alive Streamlit
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Curl app (light ping)
+        run: curl -sS "https://stc-analytics.streamlit.app/?ping=1" > /dev/null
