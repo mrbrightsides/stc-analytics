@@ -3,6 +3,8 @@
 
 Satu tempat buat pantau **biaya gas (Vision)**, **temuan keamanan (SWC)**, dan **hasil benchmark (Bench)** Smart Contract Anda — cepat, ringan, dan terstruktur. Dibangun dengan **Streamlit** + **DuckDB**.
 
+<div style="text-align: center;">
+
 [![Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://stc-analytics.streamlit.app)
 ![Python](https://img.shields.io/badge/Python-3.10%2B-blue)
 ![DuckDB](https://img.shields.io/badge/DuckDB-yellow)
@@ -11,6 +13,9 @@ Satu tempat buat pantau **biaya gas (Vision)**, **temuan keamanan (SWC)**, dan *
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.16792530.svg)](https://doi.org/10.5281/zenodo.16792530)
 ![STC Ecosystem](https://img.shields.io/badge/STC%20Ecosystem-core-blue?logo=ethereum&logoColor=white)
 ![status: stable](https://img.shields.io/badge/status-stable-brightgreen)
+
+</div>
+
 
 <p align="center">
 <img width="757" height="757" alt="stc-logo" src="https://github.com/user-attachments/assets/3a20844c-20c0-4f94-8e6d-0d25ffab49ff" />
