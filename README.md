@@ -26,7 +26,7 @@ Satu tempat buat pantau **biaya gas (Vision)**, **temuan keamanan (SWC)**, dan *
 | Converter   | [stc-converter.streamlit.app](https://stc-converter.streamlit.app/) | ✅ Stable | ![Converter](https://img.shields.io/badge/STC-Converter-orange) |
 | GasVision   | [stc-gasvision.streamlit.app](https://stc-gasvision.streamlit.app/) | ✅ Stable | ![GasVision](https://img.shields.io/badge/STC-GasVision-crimson) |
 | Insight     | [stc-insight.streamlit.app](https://stc-insight.streamlit.app/) | ✅ Stable | ![Insight](https://img.shields.io/badge/STC-Insight-purple) |
-| Bench       | [stc-bench.streamlit.app](https://stc-bench.streamlit.app/) | 🔄 Dev | ![Bench](https://img.shields.io/badge/STC-Bench-teal) |
+| Bench       | [stc-bench.streamlit.app](https://stc-bench.streamlit.app/) | ✅ Stable | ![Bench](https://img.shields.io/badge/STC-Bench-teal) |
 
 ```mermaid
 flowchart TD
