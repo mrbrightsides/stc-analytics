@@ -340,13 +340,30 @@ Satu tempat buat pantau **biaya gas (Vision)**, **temuan keamanan (SWC)**, dan *
 Semua data disimpan **lokal** di **DuckDB**. Aplikasi ini tidak mengirim data ke layanan eksternal.
 
 ---
+---
+#### 🧩 RANTAI Ecosystem
+1. [STC Bench](https://stc-bench.streamlit.app/)
+2. [STC GasVision](https://stc-gasvision.streamlit.app/)
+3. [STC Converter](https://stc-converter.streamlit.app/)
+4. [STC Insight](https://stc-insight.streamlit.app/)
+5. [STC Plugin](https://smartourism.elpeef.com/)
+6. [SmartFaith](https://smartfaith.streamlit.app/)
+7. [Learn3](https://learn3.streamlit.app/)
+8. [Nexus](https://rantai-nexus.streamlit.app/)
+9. [DataHub](https://stc-data.streamlit.app/)
 
+---
 #### 🙌 Dukungan & kontributor
-- ⭐ **Star / Fork**: [GitHub repo](https://github.com/mrbrightsides/stc-analytics/tree/main)
-- Built with 💙 by [ELPEEF](https://elpeef.com)
+- ⭐ **Star / Fork**: [GitHub repo](https://github.com/mrbrightsides/stc-analytics)
+- Built with 💙 by [Khudri](https://s.id/khudri)
+- Dukung pengembangan proyek ini melalui: 
+[💖 GitHub Sponsors](https://github.com/sponsors/mrbrightsides) • 
+[☕ Ko-fi](https://ko-fi.com/khudri) • 
+[💵 PayPal](https://www.paypal.com/paypalme/akhmadkhudri) • 
+[🍵 Trakteer](https://trakteer.id/akhmad_khudri)
 
-Versi UI: v1.0 • Streamlit + DuckDB • Theme Dark
-""",
+Versi UI: v1.0 • Streamlit • Theme Dark
+    """,
         unsafe_allow_html=False,
     )
 
