@@ -340,7 +340,7 @@ Satu tempat buat pantau **biaya gas (Vision)**, **temuan keamanan (SWC)**, dan *
 Semua data disimpan **lokal** di **DuckDB**. Aplikasi ini tidak mengirim data ke layanan eksternal.
 
 ---
----
+
 #### 🧩 RANTAI Ecosystem
 1. [STC Bench](https://stc-bench.streamlit.app/)
 2. [STC GasVision](https://stc-gasvision.streamlit.app/)
