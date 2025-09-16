@@ -351,6 +351,7 @@ Semua data disimpan **lokal** di **DuckDB**. Aplikasi ini tidak mengirim data ke
 7. [Learn3](https://learn3.streamlit.app/)
 8. [Nexus](https://rantai-nexus.streamlit.app/)
 9. [DataHub](https://stc-data.streamlit.app/)
+10. [BlockPedia](https://blockpedia.streamlit.app/)
 
 ---
 #### 🙌 Dukungan & kontributor
