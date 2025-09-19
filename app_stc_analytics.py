@@ -359,6 +359,7 @@ Semua data disimpan **lokal** di **DuckDB**. Aplikasi ini tidak mengirim data ke
 5. [Exploratory Data Analysis](https://rantai-exploda.streamlit.app/)
 6. [Business Intelligence](https://rantai-busi.streamlit.app/)
 7. [Predictive Modelling](https://rantai-model-predi.streamlit.app/)
+8. [Ethic, Bias, Law, & Religion](https://rantai-ethika.streamlit.app/)
 
 ---
 #### 🙌 Dukungan & kontributor
